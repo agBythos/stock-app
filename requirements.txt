@@ -1,0 +1,40 @@
+# Stock Analysis Pro - Python Dependencies
+# Python 3.11+ required
+
+# Core Framework
+fastapi==0.115.5
+uvicorn[standard]==0.34.0
+
+# Data Processing
+pandas==2.2.3
+numpy==2.2.2
+
+# Stock Data Provider
+yfinance==0.2.51
+
+# Machine Learning — Core
+scikit-learn==1.6.1
+
+# Machine Learning — Boosting (optional but recommended for ensemble)
+catboost>=1.2
+xgboost>=2.0
+lightgbm>=4.0
+
+# Market Regime Detection
+hmmlearn>=0.3.0
+
+# Backtesting Engine
+backtrader>=1.9.76
+
+# Additional Dependencies (installed automatically with above packages)
+# - requests (HTTP client for yfinance / Discord webhook)
+# - lxml (HTML/XML parser)
+# - beautifulsoup4 (Web scraping)
+# - pytz (Timezone support)
+# - pydantic (Data validation for FastAPI)
+# - starlette (ASGI framework for FastAPI)
+
+# Development & Testing (optional)
+# pytest>=9.0
+# black>=24.0
+# flake8>=7.0

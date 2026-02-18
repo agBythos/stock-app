@@ -1,0 +1,68 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.pdb
+*.egg-info/
+dist/
+build/
+*.egg
+.eggs/
+
+# Virtual environments
+venv/
+.venv/
+env/
+.env/
+
+# Environment variables / secrets
+.env
+*.env.local
+*.env.*.local
+
+# ML Models (trained artifacts — regenerated at runtime)
+models/
+cache/models/
+*.pkl
+*.pickle
+*.joblib
+
+# CatBoost training output
+catboost_info/
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+
+# Alert/regime state (auto-generated)
+alerts/state.json
+alert-log.json
+
+# Walk-forward / CPCV result caches
+walk_forward_result.json
+walk_forward_e2e_result.json
+
+# pytest cache
+.pytest_cache/
+
+# IDE / Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs
+*.log
+logs/
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb

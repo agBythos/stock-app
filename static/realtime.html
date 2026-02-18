@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<!--
+Phase 8B: WebSocket Real-Time Dashboard
+Connects to /ws/price/{symbol} and displays live price updates with
+Lightweight Charts (TradingView).  No framework dependencies — pure
+browser-native WebSocket API + Lightweight Charts CDN.
+-->
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Real-Time Stock Dashboard</title>
+
+  <!-- Lightweight Charts v4 (TradingView) -->
+  <script src="https://unpkg.com/lightweight-charts@4/dist/lightweight-charts.standalone.production.js"></script>
+
+  <style>
+    /* ── Base ─────────────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #0d1117;
+      color: #e6edf3;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 24px 16px;
+    }
+
+    h1 {
+      font-size: 1.6rem;
+      margin-bottom: 20px;
+      color: #58a6ff;
+      letter-spacing: 0.03em;
+    }
+
+    /* ── Symbol Input ─────────────────────────────────────────────── */
+    #input-bar {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 20px;
+      width: 100%;
+      max-width: 480px;
+    }
+    #symbol-input {
+      flex: 1;
+      padding: 10px 14px;
+      border: 1px solid #30363d;
+      border-radius: 8px;
+      background: #161b22;
+      color: #e6edf3;
+      font-size: 1rem;
+      text-transform: uppercase;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    #symbol-input:focus { border-color: #58a6ff; }
+    button {
+      padding: 10px 18px;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 0.95rem;
+      font-weight: 600;
+      transition: opacity 0.15s;
+    }
+    button:hover { opacity: 0.85; }
+    #btn-connect    { background: #238636; color: #fff; }
+    #btn-disconnect { background: #da3633; color: #fff; }
+
+    /* ── Status Banner ────────────────────────────────────────────── */
+    #status-bar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 16px;
+      font-size: 0.9rem;
+      color: #8b949e;
+    }
+    #dot {
+      width: 10px; height: 10px;
+      border-radius: 50%;
+      background: #30363d;
+      flex-shrink: 0;
+    }
+    #dot.connected    { background: #3fb950; }
+    #dot.reconnecting { background: #d29922; }
+    #dot.disconnected { background: #da3633; }
+
+    /* ── Price Card ───────────────────────────────────────────────── */
+    #price-card {
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 12px;
+      padding: 20px 28px;
+      width: 100%;
+      max-width: 480px;
+      margin-bottom: 20px;
+    }
+    #card-symbol {
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: #8b949e;
+      margin-bottom: 4px;
+    }
+    #card-price {
+      font-size: 2.6rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      margin-bottom: 4px;
+    }
+    #card-change {
+      font-size: 1.1rem;
+      font-weight: 600;
+      margin-bottom: 12px;
+    }
+    .positive { color: #3fb950; }
+    .negative { color: #f85149; }
+    .neutral  { color: #8b949e; }
+
+    #card-meta {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px 16px;
+      font-size: 0.82rem;
+      color: #8b949e;
+    }
+    #card-meta span b { color: #c9d1d9; }
+
+    /* ── Chart ────────────────────────────────────────────────────── */
+    #chart-container {
+      width: 100%;
+      max-width: 760px;
+      height: 320px;
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 12px;
+      overflow: hidden;
+    }
+
+    /* ── Toast ────────────────────────────────────────────────────── */
+    #toast {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%) translateY(80px);
+      background: #161b22;
+      color: #e6edf3;
+      border: 1px solid #30363d;
+      padding: 10px 20px;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      transition: transform 0.3s ease;
+      pointer-events: none;
+      z-index: 999;
+    }
+    #toast.show { transform: translateX(-50%) translateY(0); }
+  </style>
+</head>
+<body>
+
+<h1>📈 Real-Time Stock Dashboard</h1>
+
+<!-- Symbol input + controls -->
+<div id="input-bar">
+  <input id="symbol-input" type="text" placeholder="e.g. AAPL, TSLA, 2330.TW" value="2330.TW" />
+  <button id="btn-connect"    onclick="wsConnect()">Connect</button>
+  <button id="btn-disconnect" onclick="wsDisconnect()" disabled>Disconnect</button>
+</div>
+
+<!-- Status -->
+<div id="status-bar">
+  <span id="dot" class="disconnected"></span>
+  <span id="status-text">Disconnected</span>
+</div>
+
+<!-- Live price card -->
+<div id="price-card">
+  <div id="card-symbol">—</div>
+  <div id="card-price" class="neutral">—</div>
+  <div id="card-change" class="neutral">—</div>
+  <div id="card-meta">
+    <span>Vol: <b id="meta-vol">—</b></span>
+    <span>Prev Close: <b id="meta-prev">—</b></span>
+    <span>Source: <b id="meta-src">—</b></span>
+    <span>Updated: <b id="meta-time">—</b></span>
+  </div>
+</div>
+
+<!-- Lightweight Charts area -->
+<div id="chart-container"></div>
+
+<!-- Toast notification -->
+<div id="toast"></div>
+
+<script>
+/**
+ * Phase 8B — WebSocket Real-Time Dashboard
+ * Browser-native WebSocket API + TradingView Lightweight Charts.
+ *
+ * Flow:
+ *  wsConnect()  → _wsOpen(symbol)  → onopen / onmessage / onclose / onerror
+ *  Each `onmessage` event → _wsUpdateUI(data) + _chartAppend(price)
+ *  Disconnection (non-1008) → exponential-backoff reconnect via _wsScheduleReconnect()
+ */
+
+/* ── Constants ──────────────────────────────────────────────────────── */
+const WS_PUSH_INTERVAL_MS = 5_000;          // server pushes every 5 s
+const RECONNECT_BASE_MS   = 1_000;          // first reconnect after 1 s
+const RECONNECT_MAX_MS    = 30_000;         // max back-off cap
+
+/* ── State ──────────────────────────────────────────────────────────── */
+let _ws            = null;
+let _currentSymbol = "";
+let _reconnectMs   = RECONNECT_BASE_MS;
+let _reconnectTimer = null;
+let _intentionalClose = false;
+
+/* ── Lightweight Charts setup ───────────────────────────────────────── */
+const _chart = LightweightCharts.createChart(
+  document.getElementById("chart-container"),
+  {
+    width:  document.getElementById("chart-container").offsetWidth,
+    height: 320,
+    layout: { background: { color: "#161b22" }, textColor: "#8b949e" },
+    grid:   {
+      vertLines:   { color: "#21262d" },
+      horzLines:   { color: "#21262d" },
+    },
+    crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
+    rightPriceScale: { borderColor: "#30363d" },
+    timeScale:       { borderColor: "#30363d", timeVisible: true },
+  }
+);
+const _lineSeries = _chart.addLineSeries({
+  color:     "#58a6ff",
+  lineWidth: 2,
+});
+
+/** Append a price point to the live chart. */
+function _chartAppend(price, timestampISO) {
+  /**
+   * Convert ISO-8601 timestamp to Unix epoch (seconds) for Lightweight Charts.
+   * @param {string} timestampISO - e.g. "2026-02-18T09:45:00Z"
+   * @param {number} price
+   */
+  const epochSec = Math.floor(new Date(timestampISO).getTime() / 1000);
+  _lineSeries.update({ time: epochSec, value: price });
+}
+
+/* ── UI helpers ─────────────────────────────────────────────────────── */
+/**
+ * Update connection status indicator dot and label.
+ * @param {"connected"|"reconnecting"|"disconnected"} state
+ */
+function _wsSetStatus(state) {
+  const dot  = document.getElementById("dot");
+  const text = document.getElementById("status-text");
+  dot.className = state;
+  const labels = {
+    connected:    "Connected",
+    reconnecting: "Reconnecting…",
+    disconnected: "Disconnected",
+  };
+  text.textContent = labels[state] || state;
+
+  const btnConn   = document.getElementById("btn-connect");
+  const btnDisc   = document.getElementById("btn-disconnect");
+  btnConn.disabled  = state === "connected";
+  btnDisc.disabled  = state === "disconnected";
+}
+
+/**
+ * Update price card DOM elements from a server payload.
+ * @param {Object} data - JSON payload from /ws/price/{symbol}
+ */
+function _wsUpdateUI(data) {
+  if (data.error) {
+    _showToast("⚠ " + data.error);
+    return;
+  }
+
+  document.getElementById("card-symbol").textContent = data.symbol || "—";
+
+  const price = typeof data.price === "number" ? data.price : parseFloat(data.price);
+  const el = document.getElementById("card-price");
+  el.textContent = isNaN(price) ? "—" : price.toFixed(2);
+
+  const chg = typeof data.change_pct === "number" ? data.change_pct : parseFloat(data.change_pct);
+  const chgEl = document.getElementById("card-change");
+  if (!isNaN(chg)) {
+    const sign = chg >= 0 ? "+" : "";
+    chgEl.textContent = `${sign}${chg.toFixed(2)}%`;
+    chgEl.className = chg >= 0 ? "positive" : "negative";
+  } else {
+    chgEl.textContent = "—";
+    chgEl.className   = "neutral";
+  }
+
+  const vol = data.volume;
+  document.getElementById("meta-vol").textContent =
+    typeof vol === "number" ? vol.toLocaleString() : "—";
+
+  document.getElementById("meta-prev").textContent =
+    typeof data.prev_close === "number" ? data.prev_close.toFixed(2) : "—";
+
+  document.getElementById("meta-src").textContent  = data.source  || "—";
+
+  const ts = data.timestamp;
+  if (ts) {
+    const d = new Date(ts);
+    document.getElementById("meta-time").textContent =
+      d.toLocaleTimeString(undefined, { hour12: false });
+  } else {
+    document.getElementById("meta-time").textContent = "—";
+  }
+
+  // Append to chart
+  if (!isNaN(price) && data.timestamp) {
+    _chartAppend(price, data.timestamp);
+  }
+}
+
+/** Show a brief toast message. */
+function _showToast(msg) {
+  const t = document.getElementById("toast");
+  t.textContent = msg;
+  t.classList.add("show");
+  setTimeout(() => t.classList.remove("show"), 3000);
+}
+
+/* ── WebSocket core ─────────────────────────────────────────────────── */
+/**
+ * Open a WebSocket connection for the given symbol.
+ * @param {string} symbol - Ticker symbol (e.g. "AAPL")
+ */
+function _wsOpen(symbol) {
+  const proto = location.protocol === "https:" ? "wss" : "ws";
+  const url   = `${proto}://${location.host}/ws/price/${symbol}`;
+
+  _ws = new WebSocket(url);
+
+  _ws.onopen = () => {
+    console.log(`[WS] Connected: ${url}`);
+    _reconnectMs = RECONNECT_BASE_MS;   // reset back-off
+    _wsSetStatus("connected");
+    _showToast(`✅ Connected to ${symbol}`);
+  };
+
+  _ws.onmessage = (event) => {
+    /**
+     * Handle incoming JSON payload from server.
+     * Validate schema before updating UI.
+     */
+    let data;
+    try {
+      data = JSON.parse(event.data);
+    } catch (e) {
+      console.error("[WS] Invalid JSON:", event.data);
+      return;
+    }
+    _wsUpdateUI(data);
+  };
+
+  _ws.onerror = (err) => {
+    console.error("[WS] Error:", err);
+  };
+
+  _ws.onclose = (evt) => {
+    console.log(`[WS] Closed code=${evt.code} reason=${evt.reason}`);
+    _wsSetStatus("disconnected");
+
+    if (evt.code === 1008) {
+      // Server rejected (max connections) — do NOT reconnect
+      _showToast("❌ Server rejected: max connections reached");
+      return;
+    }
+
+    if (!_intentionalClose) {
+      _wsScheduleReconnect(symbol);
+    }
+  };
+}
+
+/**
+ * Schedule an exponential-backoff reconnect attempt.
+ * @param {string} symbol
+ */
+function _wsScheduleReconnect(symbol) {
+  _wsSetStatus("reconnecting");
+  console.log(`[WS] Reconnecting in ${_reconnectMs}ms…`);
+  _reconnectTimer = setTimeout(() => {
+    _wsOpen(symbol);
+    _reconnectMs = Math.min(_reconnectMs * 2, RECONNECT_MAX_MS);
+  }, _reconnectMs);
+}
+
+/* ── Public API (called by buttons / external code) ─────────────────── */
+/**
+ * Connect (or reconnect) to the WebSocket feed for the symbol in the input.
+ */
+function wsConnect() {
+  const raw    = document.getElementById("symbol-input").value.trim().toUpperCase();
+  if (!raw) { _showToast("⚠ Please enter a symbol"); return; }
+  if (_ws && _ws.readyState < 2) {
+    _ws.close(1000, "User switched symbol");
+  }
+  clearTimeout(_reconnectTimer);
+  _intentionalClose = false;
+  _currentSymbol    = raw;
+
+  // Reset chart series data
+  _lineSeries.setData([]);
+
+  _wsOpen(raw);
+}
+
+/**
+ * Manually disconnect from the WebSocket feed.
+ */
+function wsDisconnect() {
+  _intentionalClose = true;
+  clearTimeout(_reconnectTimer);
+  if (_ws) {
+    _ws.close(1000, "User disconnected");
+    _ws = null;
+  }
+  _wsSetStatus("disconnected");
+  _showToast("🔌 Disconnected");
+}
+
+/* ── Responsive chart resize ────────────────────────────────────────── */
+window.addEventListener("resize", () => {
+  _chart.applyOptions({
+    width: document.getElementById("chart-container").offsetWidth,
+  });
+});
+
+/* ── Auto-connect on load if a symbol is pre-filled ────────────────── */
+window.addEventListener("DOMContentLoaded", () => {
+  const input = document.getElementById("symbol-input");
+  if (input.value.trim()) {
+    // Small delay so the page renders first
+    setTimeout(wsConnect, 500);
+  }
+});
+</script>
+
+</body>
+</html>

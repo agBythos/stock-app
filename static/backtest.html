@@ -1,0 +1,594 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>策略回測 | Stock Analysis Pro</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0a0e27; color: #e4e4e7; }
+    .card { background: #0f172a; border: 1px solid #1e293b; border-radius: 0.75rem; padding: 1.5rem; }
+    .label { font-size: 0.875rem; color: #94a3b8; margin-bottom: 0.25rem; }
+    input, select { background: #1e293b; border: 1px solid #334155; color: #e4e4e7; border-radius: 0.5rem; padding: 0.5rem 0.75rem; width: 100%; }
+    input:focus, select:focus { outline: none; border-color: #6366f1; }
+    .btn { display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.625rem 1.25rem; border-radius: 0.5rem; font-weight: 600; cursor: pointer; transition: all 0.2s; border: none; }
+    .btn-primary { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; }
+    .btn-primary:hover { opacity: 0.9; transform: translateY(-1px); }
+    .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+    .btn-secondary { background: #1e293b; color: #94a3b8; border: 1px solid #334155; }
+    .btn-secondary:hover { border-color: #6366f1; color: #e4e4e7; }
+    .metric-card { background: #1e293b; border-radius: 0.5rem; padding: 1rem; text-align: center; }
+    .metric-value { font-size: 1.75rem; font-weight: 700; }
+    .metric-label { font-size: 0.75rem; color: #64748b; margin-top: 0.25rem; }
+    .positive { color: #22c55e; }
+    .negative { color: #ef4444; }
+    .neutral { color: #94a3b8; }
+    .tag { display: inline-block; padding: 0.125rem 0.5rem; border-radius: 9999px; font-size: 0.75rem; background: #1e293b; border: 1px solid #334155; }
+    .tag-bull { border-color: #22c55e33; background: #22c55e11; color: #22c55e; }
+    .tag-bear { border-color: #ef444433; background: #ef444411; color: #ef4444; }
+    .tag-sideways { border-color: #f59e0b33; background: #f59e0b11; color: #f59e0b; }
+    .spinner { border: 3px solid #1e293b; border-top-color: #6366f1; border-radius: 50%; width: 24px; height: 24px; animation: spin 0.8s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .trade-row:nth-child(even) { background: #1e293b44; }
+    .section-title { font-size: 0.875rem; font-weight: 600; color: #6366f1; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.75rem; }
+
+    /* ── Phase 9: KPI Tooltips ─────────────────────────────────────── */
+    .kpi-tooltip { position: relative; cursor: help; }
+    .kpi-tip {
+      visibility: hidden; opacity: 0;
+      width: 230px; background: #1e293b; border: 1px solid #475569;
+      color: #e2e8f0; text-align: left; border-radius: 8px;
+      padding: 10px 12px; font-size: 12px; font-weight: normal;
+      line-height: 1.6; position: absolute; z-index: 200;
+      bottom: calc(100% + 10px); left: 50%; transform: translateX(-50%);
+      transition: opacity 0.2s ease; box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+      pointer-events: none;
+    }
+    .kpi-tip::after {
+      content: ''; position: absolute; top: 100%; left: 50%;
+      transform: translateX(-50%); border: 6px solid transparent;
+      border-top-color: #475569;
+    }
+    .kpi-tooltip:hover .kpi-tip,
+    .kpi-tooltip:focus-within .kpi-tip { visibility: visible; opacity: 1; }
+
+    /* ── Phase 9: Loading improvements ─────────────────────────────── */
+    .loading-card {
+      display: flex; align-items: center; gap: 1rem;
+      padding: 1.25rem 1.5rem;
+    }
+    .loading-text { font-size: 1rem; font-weight: 600; color: #e2e8f0; }
+    .loading-hint { font-size: 0.8rem; color: #64748b; margin-top: 2px; }
+    .loading-progress {
+      margin-top: 0.75rem; height: 3px;
+      background: #1e293b; border-radius: 9999px; overflow: hidden;
+    }
+    .loading-bar {
+      height: 100%; width: 0%;
+      background: linear-gradient(90deg, #667eea, #764ba2);
+      border-radius: 9999px;
+      animation: progress-fill 50s linear forwards;
+    }
+    @keyframes progress-fill { from { width: 0%; } to { width: 92%; } }
+
+    /* ── Phase 9: Error improvements ───────────────────────────────── */
+    .error-detail { font-size: 0.7rem; color: #94a3b8; margin-top: 6px; opacity: 0.75; font-family: monospace; }
+  </style>
+</head>
+<body class="min-h-screen">
+
+  <!-- Header -->
+  <header class="border-b border-slate-800 px-6 py-4 flex items-center justify-between">
+    <div class="flex items-center gap-3">
+      <a href="/" class="text-slate-400 hover:text-white transition-colors">
+        <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
+      </a>
+      <h1 class="text-xl font-bold bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent">策略回測</h1>
+      <span class="tag">Phase 6</span>
+    </div>
+    <a href="/docs" target="_blank" class="text-sm text-slate-400 hover:text-indigo-400 transition-colors">API Docs →</a>
+  </header>
+
+  <main class="max-w-5xl mx-auto px-4 py-8 space-y-6">
+
+    <!-- Control Panel -->
+    <div class="card">
+      <h2 class="section-title">回測設定</h2>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+        <!-- Symbol -->
+        <div>
+          <div class="label">股票代碼</div>
+          <input id="symbol" type="text" value="AAPL" placeholder="AAPL / 2330.TW" />
+        </div>
+
+        <!-- Strategy -->
+        <div>
+          <div class="label">策略</div>
+          <select id="strategy">
+            <option value="ma_crossover">MA Crossover（均線交叉）</option>
+            <option value="rf">Random Forest ML</option>
+            <option value="hmm_filter">HMM Filter Strategy</option>
+          </select>
+        </div>
+
+        <!-- Start Date -->
+        <div>
+          <div class="label">起始日期</div>
+          <input id="start_date" type="date" value="2023-01-01" />
+        </div>
+
+        <!-- End Date -->
+        <div>
+          <div class="label">結束日期</div>
+          <input id="end_date" type="date" value="2024-12-31" />
+        </div>
+
+        <!-- Initial Capital -->
+        <div>
+          <div class="label">初始資金（USD）</div>
+          <input id="capital" type="number" value="100000" min="1000" step="1000" />
+        </div>
+
+        <!-- Mode (backtest or validate/hmm) -->
+        <div>
+          <div class="label">驗證模式</div>
+          <select id="mode">
+            <option value="backtest">標準回測（/api/backtest/run）</option>
+            <option value="hmm_validate">HMM 驗證（/api/validate/hmm）</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Advanced params (strategy-specific) -->
+      <div id="params-panel" class="mt-4 pt-4 border-t border-slate-800">
+        <div class="label mb-2">策略參數（可選）</div>
+        <div id="params-fields" class="grid grid-cols-2 md:grid-cols-3 gap-3"></div>
+      </div>
+
+      <!-- Action buttons -->
+      <div class="flex gap-3 mt-6">
+        <button id="run-btn" class="btn btn-primary" onclick="runBacktest()">
+          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+          執行回測
+        </button>
+        <button class="btn btn-secondary" onclick="clearResults()">清除結果</button>
+      </div>
+    </div>
+
+    <!-- Loading (Phase 9: improved with estimated time) -->
+    <div id="loading" class="hidden card">
+      <div class="loading-card">
+        <div class="spinner" style="width:32px;height:32px;flex-shrink:0;"></div>
+        <div>
+          <div class="loading-text">⏳ 正在計算中...</div>
+          <div id="loading-hint" class="loading-hint">約需 30–60 秒（首次執行需訓練機器學習模型）</div>
+        </div>
+      </div>
+      <div class="loading-progress mx-6 mb-2">
+        <div id="loading-bar" class="loading-bar"></div>
+      </div>
+    </div>
+
+    <!-- Error -->
+    <div id="error-box" class="hidden card border border-red-800 bg-red-950">
+      <div class="text-red-400 font-semibold mb-1">❌ 錯誤</div>
+      <div id="error-msg" class="text-red-300 text-sm"></div>
+    </div>
+
+    <!-- Results: Performance Metrics -->
+    <div id="results" class="hidden space-y-6">
+
+      <!-- Summary header -->
+      <div class="card">
+        <div class="flex items-center justify-between mb-4">
+          <h2 class="section-title mb-0">回測結果</h2>
+          <span id="result-label" class="tag"></span>
+        </div>
+
+        <!-- KPI grid -->
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <div class="metric-card kpi-tooltip">
+            <div id="kpi-return" class="metric-value">—</div>
+            <div class="metric-label">總報酬率</div>
+            <div class="kpi-tip">回測期間的總收益率：<br>（最終資產 − 初始資金）÷ 初始資金 × 100%<br>正值表示獲利，負值表示虧損。</div>
+          </div>
+          <div class="metric-card kpi-tooltip">
+            <div id="kpi-drawdown" class="metric-value">—</div>
+            <div class="metric-label">最大回撤 ▼</div>
+            <div class="kpi-tip">最大回撤（Max Drawdown）：<br>資產從最高峰到最低谷的最大跌幅。<br>數值越小越好，代表策略的下行風險較低。</div>
+          </div>
+          <div class="metric-card kpi-tooltip">
+            <div id="kpi-sharpe" class="metric-value">—</div>
+            <div class="metric-label">Sharpe Ratio ⓘ</div>
+            <div class="kpi-tip">Sharpe Ratio（夏普比率）：<br>衡量每單位風險所獲得的超額報酬。<br>• &gt; 1：表現不錯<br>• &gt; 2：表現優秀<br>• &lt; 0：風險調整後虧損</div>
+          </div>
+          <div class="metric-card kpi-tooltip">
+            <div id="kpi-trades" class="metric-value">—</div>
+            <div class="metric-label">交易次數</div>
+            <div class="kpi-tip">回測期間策略觸發的買賣配對總次數。<br>次數過少可能代表統計樣本不足，結果參考性較低。</div>
+          </div>
+        </div>
+
+        <!-- Secondary metrics -->
+        <div class="grid grid-cols-2 md:grid-cols-3 gap-3 mt-3">
+          <div class="metric-card kpi-tooltip">
+            <div id="kpi-winrate" class="metric-value text-2xl">—</div>
+            <div class="metric-label">勝率 ⓘ</div>
+            <div class="kpi-tip">Win Rate（勝率）：<br>盈利交易次數 ÷ 總交易次數。<br>注意：低勝率策略若獲利遠大於虧損（高 Profit Factor）仍可能整體盈利。</div>
+          </div>
+          <div class="metric-card kpi-tooltip">
+            <div id="kpi-final" class="metric-value text-2xl">—</div>
+            <div class="metric-label">最終資產</div>
+            <div class="kpi-tip">回測結束時的總資產價值（含現金與持倉市值），以美元計算。</div>
+          </div>
+          <div class="metric-card kpi-tooltip">
+            <div id="kpi-profit-factor" class="metric-value text-2xl">—</div>
+            <div class="metric-label">Profit Factor ⓘ</div>
+            <div class="kpi-tip">Profit Factor：<br>總獲利 ÷ 總虧損。<br>• &gt; 1：整體獲利<br>• &gt; 1.5：不錯的策略<br>• &gt; 2：優秀策略<br>• = 0：無虧損交易（可能樣本太少）</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- HMM Regime distribution (only for HMM validate) -->
+      <div id="hmm-section" class="hidden card">
+        <h2 class="section-title">HMM 市場狀態分佈</h2>
+        <div id="hmm-regimes" class="flex flex-wrap gap-3"></div>
+      </div>
+
+      <!-- Equity Curve (mini) -->
+      <div id="equity-section" class="card hidden">
+        <h2 class="section-title">權益曲線</h2>
+        <canvas id="equity-canvas" height="160"></canvas>
+      </div>
+
+      <!-- Recent Trades -->
+      <div id="trades-section" class="card hidden">
+        <h2 class="section-title">交易記錄（最近 20 筆）</h2>
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead>
+              <tr class="text-slate-400 border-b border-slate-800">
+                <th class="text-left py-2 pr-4">進場日期</th>
+                <th class="text-left py-2 pr-4">出場日期</th>
+                <th class="text-right py-2 pr-4">進場價</th>
+                <th class="text-right py-2 pr-4">出場價</th>
+                <th class="text-right py-2 pr-4">股數</th>
+                <th class="text-right py-2">損益</th>
+              </tr>
+            </thead>
+            <tbody id="trades-body"></tbody>
+          </table>
+        </div>
+      </div>
+
+    </div><!-- /results -->
+  </main>
+
+  <script>
+  // ── Strategy param definitions ───────────────────────────────────────────
+  const STRATEGY_PARAMS = {
+    ma_crossover: [
+      { id: 'fast_period', label: '快速均線週期', type: 'number', default: 10, min: 5, max: 50 },
+      { id: 'slow_period', label: '慢速均線週期', type: 'number', default: 30, min: 20, max: 200 },
+    ],
+    rf: [
+      { id: 'forward_days',          label: '預測天數',     type: 'number', default: 5,   min: 1, max: 20 },
+      { id: 'confidence_threshold',  label: '信心閾值',     type: 'number', default: 0.50, min: 0.40, max: 0.80, step: 0.05 },
+      { id: 'retrain_period',        label: '重訓週期（天）', type: 'number', default: 60,  min: 30, max: 120 },
+    ],
+    hmm_filter: [
+      { id: 'forward_days',         label: 'RF 預測天數',  type: 'number', default: 5,   min: 1, max: 20 },
+      { id: 'confidence_threshold', label: 'RF 信心閾值',  type: 'number', default: 0.50, min: 0.40, max: 0.80, step: 0.05 },
+      { id: 'hmm_n_states',         label: 'HMM 狀態數',   type: 'number', default: 3,   min: 2, max: 5 },
+      { id: 'hmm_window',           label: 'HMM 訓練窗口', type: 'number', default: 252, min: 60, max: 504 },
+    ],
+  };
+
+  // ── Render param fields when strategy changes ────────────────────────────
+  document.getElementById('strategy').addEventListener('change', renderParams);
+  renderParams();
+
+  function renderParams() {
+    const strategy = document.getElementById('strategy').value;
+    const container = document.getElementById('params-fields');
+    container.innerHTML = '';
+    (STRATEGY_PARAMS[strategy] || []).forEach(p => {
+      container.innerHTML += `
+        <div>
+          <div class="label">${p.label}</div>
+          <input id="param-${p.id}" type="${p.type}" value="${p.default}"
+                 min="${p.min||''}" max="${p.max||''}" step="${p.step||1}" />
+        </div>`;
+    });
+  }
+
+  function getParams() {
+    const strategy = document.getElementById('strategy').value;
+    const result = {};
+    (STRATEGY_PARAMS[strategy] || []).forEach(p => {
+      const el = document.getElementById(`param-${p.id}`);
+      if (el) {
+        result[p.id] = p.type === 'number' ? parseFloat(el.value) : el.value;
+      }
+    });
+    return result;
+  }
+
+  // ── Phase 9: Friendly error messages ────────────────────────────────────
+  function friendlyError(rawMsg, httpStatus) {
+    const msg = (rawMsg || '').toLowerCase();
+    if (httpStatus === 422 || msg.includes('validation') || msg.includes('invalid'))
+      return '⚠️ 輸入參數無效，請確認股票代碼格式（台股：2330.TW，美股：AAPL）與日期範圍是否正確。';
+    if (httpStatus === 404 || msg.includes('not found') || msg.includes('no data') || msg.includes('找不到'))
+      return '🔍 找不到該股票的資料，請確認代碼是否正確，或嘗試其他代碼。';
+    if (httpStatus === 429 || msg.includes('rate limit') || msg.includes('too many'))
+      return '⏱️ 請求頻率過高，請稍候片刻再試。';
+    if (httpStatus === 500 || msg.includes('internal') || msg.includes('server error'))
+      return '🛠️ 伺服器發生內部錯誤，請稍後重試。若問題持續，請聯絡管理員。';
+    if (msg.includes('timeout') || msg.includes('timed out'))
+      return '⏳ 計算超時，資料量可能過大。請縮短日期範圍（建議 1–2 年）後重試。';
+    if (msg.includes('network') || msg.includes('fetch') || msg.includes('failed to fetch'))
+      return '🌐 網路連線失敗，請確認您的網路狀態後重試。';
+    if (msg.includes('insufficient data') || msg.includes('not enough'))
+      return '📊 資料不足，請延長回測日期範圍（至少 6 個月），或選擇交易量較大的股票。';
+    if (msg.includes('no trades') || msg.includes('zero trade'))
+      return '📉 此策略在選定期間沒有觸發任何交易，請調整策略參數或日期範圍。';
+    if (rawMsg && rawMsg !== `HTTP ${httpStatus}`)
+      return `⚠️ ${rawMsg}`;
+    return `❌ 執行失敗（HTTP ${httpStatus || '未知'}），請稍後重試。`;
+  }
+
+  // ── Main run function ────────────────────────────────────────────────────
+  async function runBacktest() {
+    const btn = document.getElementById('run-btn');
+    const loading = document.getElementById('loading');
+    const errorBox = document.getElementById('error-box');
+    const results = document.getElementById('results');
+
+    // Reset and show loading bar animation
+    const loadingBar = document.getElementById('loading-bar');
+    loadingBar.style.animation = 'none';
+    loadingBar.offsetHeight; // reflow
+    loadingBar.style.animation = '';
+
+    // Update hint based on strategy
+    const strategy = document.getElementById('strategy').value;
+    const hintEl = document.getElementById('loading-hint');
+    if (strategy === 'rf' || strategy === 'hmm_filter') {
+      hintEl.textContent = '約需 60–120 秒（ML 模型需訓練，請耐心等候）';
+    } else {
+      hintEl.textContent = '約需 30–60 秒（首次執行需訓練機器學習模型）';
+    }
+
+    btn.disabled = true;
+    loading.classList.remove('hidden');
+    errorBox.classList.add('hidden');
+    results.classList.add('hidden');
+
+    try {
+      const symbol    = document.getElementById('symbol').value.trim();
+      const strategy  = document.getElementById('strategy').value;
+      const startDate = document.getElementById('start_date').value;
+      const endDate   = document.getElementById('end_date').value;
+      const capital   = parseFloat(document.getElementById('capital').value) || 100000;
+      const mode      = document.getElementById('mode').value;
+      const params    = getParams();
+
+      let data;
+      if (mode === 'hmm_validate') {
+        // HMM Validate endpoint
+        const body = {
+          symbol,
+          period: '3y',
+          hmm_n_states: params.hmm_n_states || 3,
+          hmm_window:   params.hmm_window   || 252,
+          n_groups: 6,
+          k_test_groups: 2,
+        };
+        const resp = await fetch('/api/validate/hmm', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+        if (!resp.ok) {
+          let errDetail = `HTTP ${resp.status}`;
+          try { const err = await resp.json(); errDetail = err.detail || errDetail; } catch {}
+          throw Object.assign(new Error(errDetail), { httpStatus: resp.status });
+        }
+        data = await resp.json();
+        renderHMMValidate(data, symbol);
+      } else {
+        // Standard backtest
+        const body = { symbol, strategy, start_date: startDate, end_date: endDate, initial_capital: capital, params };
+        const resp = await fetch('/api/backtest/run', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+        if (!resp.ok) {
+          let errDetail = `HTTP ${resp.status}`;
+          try { const err = await resp.json(); errDetail = err.detail || errDetail; } catch {}
+          throw Object.assign(new Error(errDetail), { httpStatus: resp.status });
+        }
+        data = await resp.json();
+        renderBacktest(data);
+      }
+
+    } catch (e) {
+      const friendly = friendlyError(e.message, e.httpStatus);
+      errorBox.classList.remove('hidden');
+      document.getElementById('error-msg').innerHTML =
+        `<span>${friendly}</span>` +
+        (e.httpStatus ? `<div class="error-detail">原始錯誤：${e.message}</div>` : '');
+    } finally {
+      btn.disabled = false;
+      loading.classList.add('hidden');
+    }
+  }
+
+  // ── Render backtest results ──────────────────────────────────────────────
+  function renderBacktest(d) {
+    const perf = d.performance || {};
+    const results = document.getElementById('results');
+
+    document.getElementById('result-label').textContent =
+      `${d.symbol || ''} · ${d.strategy_name || '回測'}`;
+
+    // KPIs
+    const ret = perf.total_return_pct ?? 0;
+    setKPI('kpi-return',        `${ret.toFixed(2)}%`,    ret >= 0 ? 'positive' : 'negative');
+    setKPI('kpi-drawdown',      `${(perf.max_drawdown_pct ?? 0).toFixed(2)}%`, 'negative');
+    setKPI('kpi-sharpe',        (perf.sharpe_ratio ?? 0).toFixed(3),           'neutral');
+    setKPI('kpi-trades',        perf.total_trades ?? 0,                        'neutral');
+    setKPI('kpi-winrate',       `${(perf.win_rate_pct ?? 0).toFixed(1)}%`,     'neutral');
+    setKPI('kpi-final',         `$${fmtNum(perf.final_value ?? 0)}`,           'neutral');
+    setKPI('kpi-profit-factor', (perf.profit_factor ?? 0).toFixed(3),          'neutral');
+
+    // Hide HMM section
+    document.getElementById('hmm-section').classList.add('hidden');
+
+    // Equity curve
+    if (d.equity_curve && d.equity_curve.length > 1) {
+      drawEquityCurve(d.equity_curve);
+      document.getElementById('equity-section').classList.remove('hidden');
+    } else {
+      document.getElementById('equity-section').classList.add('hidden');
+    }
+
+    // Trades
+    if (d.trades && d.trades.length > 0) {
+      renderTrades(d.trades.slice(-20));
+      document.getElementById('trades-section').classList.remove('hidden');
+    } else {
+      document.getElementById('trades-section').classList.add('hidden');
+    }
+
+    results.classList.remove('hidden');
+  }
+
+  // ── Render HMM validate results ──────────────────────────────────────────
+  function renderHMMValidate(d, symbol) {
+    const bt = d.backtest || {};
+    const results = document.getElementById('results');
+
+    document.getElementById('result-label').textContent = `${symbol} · HMM Validate`;
+
+    const ret = bt.total_return_pct ?? 0;
+    setKPI('kpi-return',        `${ret.toFixed(2)}%`,         ret >= 0 ? 'positive' : 'negative');
+    setKPI('kpi-drawdown',      `${(bt.max_drawdown_pct ?? 0).toFixed(2)}%`, 'negative');
+    setKPI('kpi-sharpe',        (bt.sharpe_ratio ?? 0).toFixed(3),           'neutral');
+    setKPI('kpi-trades',        bt.total_trades ?? 0,                        'neutral');
+    setKPI('kpi-winrate',       `${(bt.win_rate_pct ?? 0).toFixed(1)}%`,     'neutral');
+    setKPI('kpi-final',         '—', 'neutral');
+    setKPI('kpi-profit-factor', '—', 'neutral');
+
+    // HMM Regime distribution
+    const hmm = d.hmm || {};
+    const regimes = hmm.regime_distribution || {};
+    const hmmSection = document.getElementById('hmm-section');
+    const container = document.getElementById('hmm-regimes');
+    container.innerHTML = '';
+
+    Object.entries(regimes).forEach(([label, info]) => {
+      const tagClass = label === 'Bull' ? 'tag-bull' : label === 'Bear' ? 'tag-bear' : 'tag-sideways';
+      container.innerHTML += `
+        <div class="metric-card flex-1 min-w-[120px]">
+          <span class="tag ${tagClass}">${label}</span>
+          <div class="metric-value text-2xl mt-2">${info.pct?.toFixed(1)}%</div>
+          <div class="metric-label">${info.count} bars</div>
+        </div>`;
+    });
+    hmmSection.classList.remove('hidden');
+    document.getElementById('equity-section').classList.add('hidden');
+    document.getElementById('trades-section').classList.add('hidden');
+
+    results.classList.remove('hidden');
+  }
+
+  // ── Helpers ──────────────────────────────────────────────────────────────
+  function setKPI(id, value, colorClass) {
+    const el = document.getElementById(id);
+    el.textContent = value;
+    el.className = `metric-value ${colorClass}`;
+  }
+
+  function fmtNum(n) {
+    return new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(n);
+  }
+
+  function renderTrades(trades) {
+    const tbody = document.getElementById('trades-body');
+    tbody.innerHTML = trades.map(t => {
+      const pnl = t.pnl ?? 0;
+      const cls = pnl >= 0 ? 'positive' : 'negative';
+      return `<tr class="trade-row">
+        <td class="py-1.5 pr-4">${t.entry_date||'—'}</td>
+        <td class="py-1.5 pr-4">${t.exit_date||'—'}</td>
+        <td class="py-1.5 pr-4 text-right">${(t.entry_price||0).toFixed(2)}</td>
+        <td class="py-1.5 pr-4 text-right">${(t.exit_price||0).toFixed(2)}</td>
+        <td class="py-1.5 pr-4 text-right">${t.shares||0}</td>
+        <td class="py-1.5 text-right ${cls}">${pnl >= 0 ? '+' : ''}${pnl.toFixed(2)}</td>
+      </tr>`;
+    }).join('');
+  }
+
+  function drawEquityCurve(curve) {
+    const canvas = document.getElementById('equity-canvas');
+    const ctx = canvas.getContext('2d');
+    canvas.width = canvas.parentElement.clientWidth;
+    canvas.height = 160;
+
+    const values = curve.map(p => p.value ?? p.equity ?? 0);
+    const minV = Math.min(...values);
+    const maxV = Math.max(...values);
+    const range = maxV - minV || 1;
+
+    const W = canvas.width, H = canvas.height;
+    const padX = 40, padY = 10;
+
+    ctx.clearRect(0, 0, W, H);
+
+    // Grid lines
+    ctx.strokeStyle = '#1e293b';
+    ctx.lineWidth = 1;
+    for (let i = 0; i <= 4; i++) {
+      const y = padY + (H - 2 * padY) * (i / 4);
+      ctx.beginPath(); ctx.moveTo(padX, y); ctx.lineTo(W - padX, y); ctx.stroke();
+    }
+
+    // Curve
+    ctx.strokeStyle = values[values.length-1] >= values[0] ? '#22c55e' : '#ef4444';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    values.forEach((v, i) => {
+      const x = padX + (W - 2 * padX) * (i / (values.length - 1));
+      const y = H - padY - ((v - minV) / range) * (H - 2 * padY);
+      i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+
+    // Fill gradient
+    const grad = ctx.createLinearGradient(0, padY, 0, H - padY);
+    grad.addColorStop(0, values[values.length-1] >= values[0] ? '#22c55e44' : '#ef444444');
+    grad.addColorStop(1, 'transparent');
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    values.forEach((v, i) => {
+      const x = padX + (W - 2 * padX) * (i / (values.length - 1));
+      const y = H - padY - ((v - minV) / range) * (H - 2 * padY);
+      i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    });
+    ctx.lineTo(padX + (W - 2 * padX), H - padY);
+    ctx.lineTo(padX, H - padY);
+    ctx.fill();
+  }
+
+  function clearResults() {
+    document.getElementById('results').classList.add('hidden');
+    document.getElementById('error-box').classList.add('hidden');
+  }
+  </script>
+
+</body>
+</html>

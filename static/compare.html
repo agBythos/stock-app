@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>策略比較 | Stock Analysis Pro</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0a0e27; color: #e4e4e7; }
+    .card { background: #0f172a; border: 1px solid #1e293b; border-radius: 0.75rem; padding: 1.5rem; }
+    .label { font-size: 0.875rem; color: #94a3b8; margin-bottom: 0.25rem; }
+    input, select { background: #1e293b; border: 1px solid #334155; color: #e4e4e7; border-radius: 0.5rem; padding: 0.5rem 0.75rem; width: 100%; }
+    input:focus, select:focus { outline: none; border-color: #6366f1; }
+    .btn { display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.625rem 1.5rem; border-radius: 0.5rem; font-weight: 600; cursor: pointer; transition: all 0.2s; border: none; }
+    .btn-primary { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; }
+    .btn-primary:hover { opacity: 0.9; transform: translateY(-1px); }
+    .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+    .metric-card { background: #1e293b; border-radius: 0.5rem; padding: 1rem; text-align: center; }
+    .metric-value { font-size: 1.5rem; font-weight: 700; }
+    .metric-label { font-size: 0.75rem; color: #64748b; margin-top: 0.25rem; }
+    .positive { color: #22c55e; }
+    .negative { color: #ef4444; }
+    .neutral { color: #94a3b8; }
+    .tag { display: inline-block; padding: 0.125rem 0.5rem; border-radius: 9999px; font-size: 0.75rem; background: #1e293b; border: 1px solid #334155; }
+    .tag-phase { border-color: #6366f133; background: #6366f111; color: #818cf8; }
+    .spinner { border: 3px solid #1e293b; border-top-color: #6366f1; border-radius: 50%; width: 24px; height: 24px; animation: spin 0.8s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .section-title { font-size: 0.875rem; font-weight: 600; color: #6366f1; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.75rem; }
+    .kpi-table { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
+    .kpi-table th { text-align: left; padding: 0.5rem 0.75rem; color: #64748b; font-weight: 500; border-bottom: 1px solid #1e293b; }
+    .kpi-table td { padding: 0.5rem 0.75rem; border-bottom: 1px solid #1e293b11; }
+    .kpi-table tr:hover td { background: #1e293b44; }
+    .badge { display: inline-flex; align-items: center; gap: 0.25rem; padding: 0.2rem 0.6rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 700; }
+    .badge-best { background: linear-gradient(135deg, #667eea33, #764ba233); border: 1px solid #6366f155; color: #a5b4fc; }
+    .strategy-ma    { color: #60a5fa; }   /* blue */
+    .strategy-rf    { color: #fb923c; }   /* orange */
+    .strategy-hmm   { color: #c084fc; }   /* purple */
+    .strategy-bh    { color: #94a3b8; }   /* gray */
+    .error-box { background: #ef444411; border: 1px solid #ef444433; border-radius: 0.5rem; padding: 1rem; color: #f87171; }
+    .info-box  { background: #6366f111; border: 1px solid #6366f133; border-radius: 0.5rem; padding: 1rem; color: #a5b4fc; }
+    #chart-container { position: relative; height: 360px; }
+  </style>
+</head>
+<body class="min-h-screen">
+
+  <!-- Header -->
+  <header class="border-b border-slate-800 px-6 py-4 flex items-center justify-between">
+    <div class="flex items-center gap-3">
+      <a href="/" class="text-slate-400 hover:text-white transition-colors">
+        <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
+        </svg>
+      </a>
+      <h1 class="text-xl font-bold bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent">
+        Ensemble 策略比較
+      </h1>
+      <span class="tag tag-phase">Phase 8D</span>
+    </div>
+    <a href="/backtest" class="text-sm text-slate-400 hover:text-indigo-400 transition-colors">單策略回測 →</a>
+  </header>
+
+  <main class="max-w-6xl mx-auto px-4 py-8 space-y-6">
+
+    <!-- ── Control Panel ── -->
+    <div class="card">
+      <h2 class="section-title">比較設定</h2>
+      <div class="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+        <div>
+          <div class="label">股票代碼</div>
+          <input id="symbol" type="text" value="2330.TW" placeholder="2330.TW / AAPL" />
+        </div>
+        <div>
+          <div class="label">起始日期</div>
+          <input id="start" type="date" value="2024-01-01" />
+        </div>
+        <div>
+          <div class="label">結束日期</div>
+          <input id="end" type="date" value="2024-12-31" />
+        </div>
+        <div>
+          <button id="run-btn" class="btn btn-primary w-full justify-center" onclick="runCompare()">
+            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+            </svg>
+            開始比較
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Status / Error ── -->
+    <div id="status-area"></div>
+
+    <!-- ── Recommendation Badge ── -->
+    <div id="recommendation-area" class="hidden card">
+      <div class="flex items-center gap-3">
+        <svg class="w-6 h-6 text-yellow-400 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+          <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
+        </svg>
+        <div>
+          <div class="text-xs text-slate-400 mb-0.5">推薦策略</div>
+          <div class="text-base font-bold text-indigo-300" id="rec-name">—</div>
+          <div class="text-xs text-slate-500" id="rec-reason">—</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Chart + KPI Table (side by side on large screens) ── -->
+    <div id="results-area" class="hidden grid grid-cols-1 xl:grid-cols-5 gap-6">
+
+      <!-- Chart (left, 3 cols) -->
+      <div class="card xl:col-span-3">
+        <h2 class="section-title">權益曲線比較</h2>
+        <div id="chart-container">
+          <canvas id="equityChart"></canvas>
+        </div>
+        <div class="mt-3 flex flex-wrap gap-3 text-xs">
+          <span class="strategy-ma font-semibold">● MA Crossover</span>
+          <span class="strategy-rf font-semibold">● RF Strategy</span>
+          <span class="strategy-hmm font-semibold">● HMM Filter</span>
+          <span class="strategy-bh font-semibold">⋯ Buy &amp; Hold</span>
+        </div>
+      </div>
+
+      <!-- KPI Table (right, 2 cols) -->
+      <div class="card xl:col-span-2">
+        <h2 class="section-title">績效指標</h2>
+        <div class="overflow-x-auto">
+          <table class="kpi-table">
+            <thead>
+              <tr>
+                <th>指標</th>
+                <th id="kpi-h-ma">MA</th>
+                <th id="kpi-h-rf">RF</th>
+                <th id="kpi-h-hmm">HMM</th>
+                <th id="kpi-h-bh">B&amp;H</th>
+              </tr>
+            </thead>
+            <tbody id="kpi-tbody">
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ── Individual Strategy Cards ── -->
+    <div id="cards-area" class="hidden grid grid-cols-2 md:grid-cols-4 gap-4">
+    </div>
+
+  </main>
+
+  <script>
+    // ── State ────────────────────────────────────────────────────────────
+    let equityChartInstance = null;
+
+    // ── Strategy colour palette ──────────────────────────────────────────
+    const STRATEGY_COLORS = {
+      "MA Crossover":       { border: "#60a5fa", bg: "rgba(96,165,250,0.12)"  },
+      "RF Strategy":        { border: "#fb923c", bg: "rgba(251,146,60,0.12)"  },
+      "HMM Filter Strategy":{ border: "#c084fc", bg: "rgba(192,132,252,0.12)" },
+      "Buy & Hold":         { border: "#94a3b8", bg: "rgba(148,163,184,0.08)" },
+    };
+
+    function colorFor(name) {
+      return STRATEGY_COLORS[name] || { border: "#6366f1", bg: "rgba(99,102,241,0.1)" };
+    }
+
+    // ── UI helpers ────────────────────────────────────────────────────────
+    function setStatus(html) {
+      document.getElementById("status-area").innerHTML = html;
+    }
+
+    function pctFmt(v, decimals = 2) {
+      const val = parseFloat(v) * 100;
+      const cls = val >= 0 ? "positive" : "negative";
+      return `<span class="${cls}">${val >= 0 ? "+" : ""}${val.toFixed(decimals)}%</span>`;
+    }
+
+    function floatFmt(v, decimals = 4) {
+      const val = parseFloat(v);
+      const cls = val >= 0 ? "positive" : "negative";
+      return `<span class="${cls}">${val.toFixed(decimals)}</span>`;
+    }
+
+    // ── Main ─────────────────────────────────────────────────────────────
+    async function runCompare() {
+      const symbol = document.getElementById("symbol").value.trim();
+      const start  = document.getElementById("start").value;
+      const end    = document.getElementById("end").value;
+
+      if (!symbol || !start || !end) {
+        setStatus('<div class="error-box">請填寫所有欄位。</div>');
+        return;
+      }
+
+      // Loading UI
+      const btn = document.getElementById("run-btn");
+      btn.disabled = true;
+      btn.innerHTML = '<div class="spinner"></div> 執行中…';
+      document.getElementById("results-area").classList.add("hidden");
+      document.getElementById("recommendation-area").classList.add("hidden");
+      document.getElementById("cards-area").classList.add("hidden");
+      setStatus('<div class="info-box">正在執行 3 個策略 + Buy &amp; Hold 基準，請稍候（可能需要 30–60 秒）…</div>');
+
+      try {
+        const url = `/api/backtest/compare?symbol=${encodeURIComponent(symbol)}&start=${start}&end=${end}`;
+        const resp = await fetch(url);
+
+        if (!resp.ok) {
+          const err = await resp.json().catch(() => ({ detail: resp.statusText }));
+          throw new Error(err.detail || `HTTP ${resp.status}`);
+        }
+
+        const data = await resp.json();
+        renderResults(data);
+        setStatus("");
+
+      } catch (e) {
+        setStatus(`<div class="error-box">❌ 錯誤：${e.message}</div>`);
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = `
+          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+          </svg>
+          開始比較`;
+      }
+    }
+
+    // ── Render results ────────────────────────────────────────────────────
+    function renderResults(data) {
+      renderRecommendation(data);
+      renderChart(data);
+      renderKpiTable(data);
+      renderCards(data);
+
+      document.getElementById("results-area").classList.remove("hidden");
+      document.getElementById("cards-area").classList.remove("hidden");
+    }
+
+    // ── Recommendation ────────────────────────────────────────────────────
+    function renderRecommendation(data) {
+      const area = document.getElementById("recommendation-area");
+      if (data.recommended) {
+        document.getElementById("rec-name").textContent   = data.recommended;
+        document.getElementById("rec-reason").textContent = data.recommendation_reason || "";
+        area.classList.remove("hidden");
+      } else {
+        area.classList.add("hidden");
+      }
+    }
+
+    // ── Chart ─────────────────────────────────────────────────────────────
+    function renderChart(data) {
+      if (equityChartInstance) {
+        equityChartInstance.destroy();
+        equityChartInstance = null;
+      }
+
+      // Build datasets from all strategies + benchmark
+      const allSeries = [...(data.strategies || [])];
+      if (data.benchmark && data.benchmark.equity && data.benchmark.equity.length > 0) {
+        allSeries.push(data.benchmark);
+      }
+
+      // Collect all unique dates (union)
+      const dateSet = new Set();
+      allSeries.forEach(s => (s.equity || []).forEach(e => dateSet.add(e.date)));
+      const labels = Array.from(dateSet).sort();
+
+      const datasets = allSeries.map(s => {
+        const clr = colorFor(s.name);
+        const isBH = s.name === "Buy & Hold";
+
+        // Map equity values by date for quick lookup
+        const valMap = {};
+        (s.equity || []).forEach(e => { valMap[e.date] = e.value; });
+        const chartData = labels.map(d => valMap[d] !== undefined ? valMap[d] : null);
+
+        return {
+          label:           s.name,
+          data:            chartData,
+          borderColor:     clr.border,
+          backgroundColor: clr.bg,
+          borderWidth:     isBH ? 1.5 : 2,
+          borderDash:      isBH ? [6, 4] : [],
+          pointRadius:     0,
+          pointHoverRadius:4,
+          tension:         0.3,
+          fill:            false,
+          spanGaps:        true,
+        };
+      });
+
+      const ctx = document.getElementById("equityChart").getContext("2d");
+      equityChartInstance = new Chart(ctx, {
+        type: "line",
+        data: { labels, datasets },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          interaction: { mode: "index", intersect: false },
+          plugins: {
+            legend: {
+              display: false,   // Custom legend in HTML
+            },
+            tooltip: {
+              backgroundColor: "#0f172a",
+              borderColor: "#1e293b",
+              borderWidth: 1,
+              titleColor: "#94a3b8",
+              bodyColor: "#e4e4e7",
+              callbacks: {
+                label: ctx => {
+                  const v = ctx.parsed.y;
+                  if (v === null) return null;
+                  return ` ${ctx.dataset.label}: $${v.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2})}`;
+                }
+              }
+            }
+          },
+          scales: {
+            x: {
+              ticks: {
+                color: "#64748b",
+                maxTicksLimit: 8,
+                maxRotation: 0,
+              },
+              grid: { color: "#1e293b" },
+            },
+            y: {
+              ticks: {
+                color: "#64748b",
+                callback: v => `$${(v/1000).toFixed(0)}k`,
+              },
+              grid: { color: "#1e293b44" },
+            }
+          }
+        }
+      });
+    }
+
+    // ── KPI Table ─────────────────────────────────────────────────────────
+    function renderKpiTable(data) {
+      const strategies = data.strategies || [];
+      const bh         = data.benchmark  || {};
+      const all        = [...strategies, bh];
+
+      const KPI_ROWS = [
+        { key: "sharpe",       label: "Sharpe Ratio",   fmt: v => floatFmt(v, 3) },
+        { key: "total_return", label: "總報酬",          fmt: v => pctFmt(v) },
+        { key: "cagr",         label: "年化報酬 (CAGR)", fmt: v => pctFmt(v) },
+        { key: "max_drawdown", label: "最大回撤",        fmt: v => pctFmt(v) },
+        { key: "win_rate",     label: "勝率",            fmt: v => pctFmt(v) },
+      ];
+
+      const recommended = data.recommended;
+
+      const tbody = document.getElementById("kpi-tbody");
+      tbody.innerHTML = KPI_ROWS.map(row => {
+        const cells = all.map(s => {
+          const kpi = s.kpi || {};
+          const v   = kpi[row.key];
+          const isBest = s.name === recommended;
+          const badge  = (row.key === "sharpe" && isBest)
+            ? ' <span class="badge badge-best">★ Best</span>'
+            : "";
+          return `<td>${v !== undefined ? row.fmt(v) : "—"}${badge}</td>`;
+        }).join("");
+        return `<tr><td class="text-slate-400 whitespace-nowrap">${row.label}</td>${cells}</tr>`;
+      }).join("");
+    }
+
+    // ── Mini Strategy Cards ───────────────────────────────────────────────
+    function renderCards(data) {
+      const all = [...(data.strategies || [])];
+      if (data.benchmark) all.push(data.benchmark);
+      const recommended = data.recommended;
+
+      const area = document.getElementById("cards-area");
+      area.innerHTML = all.map(s => {
+        const kpi    = s.kpi || {};
+        const isBest = s.name === recommended;
+        const clr    = colorFor(s.name);
+        const ret    = (parseFloat(kpi.total_return || 0) * 100).toFixed(2);
+        const retCls = parseFloat(ret) >= 0 ? "positive" : "negative";
+        const badgeHtml = isBest
+          ? '<span class="badge badge-best">★ 推薦</span>'
+          : "";
+
+        return `
+          <div class="metric-card" style="border: 1px solid ${clr.border}22;">
+            <div class="text-xs font-semibold mb-2" style="color:${clr.border}">
+              ${s.name} ${badgeHtml}
+            </div>
+            <div class="metric-value ${retCls}">${parseFloat(ret) >= 0 ? "+" : ""}${ret}%</div>
+            <div class="metric-label">總報酬</div>
+            <div class="mt-2 text-xs text-slate-500">
+              Sharpe: <span class="text-slate-300">${(parseFloat(kpi.sharpe || 0)).toFixed(3)}</span>
+            </div>
+            <div class="text-xs text-slate-500">
+              回撤: <span class="negative">${(parseFloat(kpi.max_drawdown || 0) * 100).toFixed(2)}%</span>
+            </div>
+            ${s.error ? `<div class="text-xs text-red-400 mt-1">⚠️ ${s.error.slice(0,60)}</div>` : ""}
+          </div>`;
+      }).join("");
+    }
+
+    // ── Auto-run on load with default params (optional) ───────────────────
+    // Uncomment to auto-compare on page load:
+    // window.addEventListener("DOMContentLoaded", runCompare);
+  </script>
+</body>
+</html>

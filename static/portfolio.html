@@ -1,0 +1,550 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>投資組合分析 | Stock Analysis Pro</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0a0e27; color: #e4e4e7; }
+    .card { background: #0f172a; border: 1px solid #1e293b; border-radius: 0.75rem; padding: 1.5rem; }
+    .label { font-size: 0.875rem; color: #94a3b8; margin-bottom: 0.25rem; }
+    input, select { background: #1e293b; border: 1px solid #334155; color: #e4e4e7; border-radius: 0.5rem; padding: 0.5rem 0.75rem; }
+    input:focus, select:focus { outline: none; border-color: #6366f1; }
+    .btn { display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.625rem 1.25rem; border-radius: 0.5rem; font-weight: 600; cursor: pointer; transition: all 0.2s; border: none; }
+    .btn-primary { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; }
+    .btn-primary:hover { opacity: 0.9; transform: translateY(-1px); }
+    .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+    .btn-sm { padding: 0.25rem 0.625rem; font-size: 0.8rem; border-radius: 0.375rem; }
+    .btn-danger { background: #7f1d1d; color: #fca5a5; border: 1px solid #991b1b; cursor: pointer; }
+    .btn-danger:hover { background: #991b1b; }
+    .btn-ghost { background: #1e293b; color: #94a3b8; border: 1px solid #334155; cursor: pointer; }
+    .btn-ghost:hover { border-color: #6366f1; color: #e4e4e7; }
+    .metric-card { background: #1e293b; border-radius: 0.5rem; padding: 1rem; text-align: center; }
+    .metric-value { font-size: 1.5rem; font-weight: 700; }
+    .metric-label { font-size: 0.7rem; color: #64748b; margin-top: 0.25rem; text-transform: uppercase; letter-spacing: 0.05em; }
+    .positive { color: #22c55e; }
+    .negative { color: #ef4444; }
+    .neutral { color: #94a3b8; }
+    .tag { display: inline-block; padding: 0.125rem 0.5rem; border-radius: 9999px; font-size: 0.75rem; background: #1e293b; border: 1px solid #334155; }
+    .spinner { border: 3px solid #1e293b; border-top-color: #6366f1; border-radius: 50%; width: 24px; height: 24px; animation: spin 0.8s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .section-title { font-size: 0.875rem; font-weight: 600; color: #6366f1; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.75rem; }
+    .chip { display: inline-flex; align-items: center; gap: 0.375rem; background: #1e293b; border: 1px solid #334155; border-radius: 9999px; padding: 0.25rem 0.75rem; font-size: 0.8rem; }
+    .chip-remove { cursor: pointer; color: #64748b; }
+    .chip-remove:hover { color: #ef4444; }
+    .table-row { border-top: 1px solid #1e293b22; }
+    .table-row:hover { background: #1e293b44; }
+    th { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em; color: #64748b; padding: 0.5rem 0.75rem; text-align: right; }
+    th:first-child { text-align: left; }
+    td { padding: 0.5rem 0.75rem; font-size: 0.875rem; text-align: right; }
+    td:first-child { text-align: left; font-weight: 600; }
+    .weight-row { display: grid; grid-template-columns: 80px 1fr 60px; gap: 0.5rem; align-items: center; margin-bottom: 0.5rem; }
+    .weight-label { font-size: 0.875rem; color: #e4e4e7; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    input[type=range] { -webkit-appearance: none; appearance: none; background: #334155; border-radius: 9999px; height: 4px; cursor: pointer; }
+    input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 14px; height: 14px; border-radius: 50%; background: #6366f1; cursor: pointer; }
+    .alert { padding: 0.75rem 1rem; border-radius: 0.5rem; font-size: 0.875rem; }
+    .alert-error { background: #7f1d1d22; border: 1px solid #991b1b44; color: #fca5a5; }
+  </style>
+</head>
+<body class="min-h-screen">
+
+  <!-- Header -->
+  <header class="border-b border-slate-800 px-6 py-4 flex items-center justify-between">
+    <div class="flex items-center gap-3">
+      <a href="/" class="text-slate-400 hover:text-white transition-colors">
+        <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
+      </a>
+      <h1 class="text-xl font-bold bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent">投資組合分析</h1>
+      <span class="tag">Phase 7</span>
+    </div>
+    <div class="flex items-center gap-4">
+      <a href="/backtest" class="text-sm text-slate-400 hover:text-indigo-400 transition-colors">策略回測 →</a>
+      <a href="/docs" target="_blank" class="text-sm text-slate-400 hover:text-indigo-400 transition-colors">API Docs →</a>
+    </div>
+  </header>
+
+  <main class="max-w-6xl mx-auto px-4 py-8 space-y-6">
+
+    <!-- Control Panel -->
+    <div class="card">
+      <h2 class="section-title">組合設定</h2>
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+        <!-- Left: Symbol Input -->
+        <div>
+          <div class="label">股票代碼（2–10 檔，支援 TW/US）</div>
+          <div class="flex gap-2 mb-3">
+            <input id="symbol-input" type="text" placeholder="AAPL, 2330.TW, MSFT …" class="flex-1" />
+            <button onclick="addSymbol()" class="btn btn-ghost btn-sm">＋加入</button>
+          </div>
+          <!-- Symbol chips -->
+          <div id="symbol-chips" class="flex flex-wrap gap-2 min-h-[2rem]">
+            <!-- populated by JS -->
+          </div>
+          <div class="mt-2 text-xs text-slate-500">預設：AAPL、MSFT、GOOG、NVDA</div>
+        </div>
+
+        <!-- Right: Period + Weights Mode -->
+        <div class="space-y-3">
+          <div>
+            <div class="label">分析期間</div>
+            <select id="period" class="w-full">
+              <option value="3mo">3 個月</option>
+              <option value="6mo">6 個月</option>
+              <option value="1y" selected>1 年</option>
+              <option value="2y">2 年</option>
+              <option value="5y">5 年</option>
+            </select>
+          </div>
+          <div>
+            <div class="label">權重模式</div>
+            <select id="weight-mode" onchange="toggleWeightMode()" class="w-full">
+              <option value="equal">等權重</option>
+              <option value="custom">自訂權重</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- Custom Weights Panel -->
+      <div id="weights-panel" class="hidden mt-4 p-4 bg-slate-900 rounded-lg">
+        <div class="section-title">自訂權重</div>
+        <div id="weight-sliders"><!-- populated by JS --></div>
+        <div class="mt-2 text-xs text-slate-500" id="weight-total">總權重：100%（自動正規化）</div>
+      </div>
+
+      <!-- Run Button -->
+      <div class="mt-5 flex items-center gap-4">
+        <button id="run-btn" onclick="runAnalysis()" class="btn btn-primary">
+          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+          開始分析
+        </button>
+        <div id="spinner" class="hidden spinner"></div>
+        <span id="status-msg" class="text-sm text-slate-400"></span>
+      </div>
+
+      <div id="error-msg" class="hidden alert alert-error mt-4"></div>
+    </div>
+
+    <!-- Results (hidden until analysis runs) -->
+    <div id="results" class="hidden space-y-6">
+
+      <!-- Portfolio-level KPIs -->
+      <div class="card">
+        <h2 class="section-title">組合整體指標</h2>
+        <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-3" id="portfolio-kpis">
+        </div>
+        <div class="mt-3 text-xs text-slate-500" id="portfolio-info"></div>
+      </div>
+
+      <!-- Per-Asset Metrics Table -->
+      <div class="card">
+        <h2 class="section-title">個股指標比較</h2>
+        <div class="overflow-x-auto">
+          <table class="w-full">
+            <thead>
+              <tr>
+                <th>代碼</th>
+                <th>總報酬</th>
+                <th>年化報酬</th>
+                <th>年化波動</th>
+                <th>Sharpe</th>
+                <th>Sortino</th>
+                <th>最大回撤</th>
+                <th>Calmar</th>
+                <th>勝率</th>
+                <th>Beta</th>
+              </tr>
+            </thead>
+            <tbody id="asset-table-body">
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Charts Row -->
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+        <!-- Normalised Price Chart -->
+        <div class="card">
+          <h2 class="section-title">標準化淨值曲線（基準=100）</h2>
+          <canvas id="price-chart" height="220"></canvas>
+        </div>
+
+        <!-- Correlation Heatmap -->
+        <div class="card">
+          <h2 class="section-title">相關性熱力圖</h2>
+          <canvas id="corr-chart" height="220"></canvas>
+        </div>
+      </div>
+
+    </div>
+  </main>
+
+  <script>
+    // ─── State ───────────────────────────────────────────────────────────────
+    let symbols = ["AAPL", "MSFT", "GOOG", "NVDA"];
+    const PALETTE = [
+      "#6366f1","#22c55e","#f59e0b","#ef4444",
+      "#06b6d4","#ec4899","#a78bfa","#84cc16","#fb923c","#14b8a6"
+    ];
+
+    // ─── Init ─────────────────────────────────────────────────────────────────
+    window.onload = () => {
+      renderChips();
+      renderWeightSliders();
+    };
+
+    // ─── Symbol chips ──────────────────────────────────────────────────────────
+    function renderChips() {
+      const container = document.getElementById("symbol-chips");
+      container.innerHTML = symbols.map((s, i) => `
+        <span class="chip" style="border-color:${PALETTE[i % PALETTE.length]}44">
+          <span style="color:${PALETTE[i % PALETTE.length]}">${s}</span>
+          <span class="chip-remove" onclick="removeSymbol(${i})">✕</span>
+        </span>
+      `).join("");
+      renderWeightSliders();
+    }
+
+    function addSymbol() {
+      const input = document.getElementById("symbol-input");
+      const raw = input.value.trim().toUpperCase();
+      if (!raw) return;
+      // Support comma-separated
+      const newSyms = raw.split(/[,\s]+/).filter(s => s.length > 0);
+      for (const s of newSyms) {
+        if (symbols.includes(s)) continue;
+        if (symbols.length >= 10) { alert("最多 10 檔股票"); break; }
+        symbols.push(s);
+      }
+      input.value = "";
+      renderChips();
+    }
+
+    document.getElementById("symbol-input").addEventListener("keydown", e => {
+      if (e.key === "Enter") addSymbol();
+    });
+
+    function removeSymbol(idx) {
+      if (symbols.length <= 2) { alert("至少需要 2 檔股票"); return; }
+      symbols.splice(idx, 1);
+      renderChips();
+    }
+
+    // ─── Weight sliders ────────────────────────────────────────────────────────
+    function toggleWeightMode() {
+      const mode = document.getElementById("weight-mode").value;
+      document.getElementById("weights-panel").classList.toggle("hidden", mode !== "custom");
+    }
+
+    function renderWeightSliders() {
+      const container = document.getElementById("weight-sliders");
+      const n = symbols.length;
+      const defaultW = Math.round(100 / n);
+      container.innerHTML = symbols.map((s, i) => `
+        <div class="weight-row">
+          <span class="weight-label" style="color:${PALETTE[i % PALETTE.length]}">${s}</span>
+          <input type="range" id="w-${i}" min="0" max="100" value="${defaultW}"
+                 oninput="updateWeightDisplay()" style="accent-color:${PALETTE[i % PALETTE.length]}" />
+          <span id="wv-${i}" class="text-xs text-slate-300 text-right">${defaultW}%</span>
+        </div>
+      `).join("");
+      updateWeightDisplay();
+    }
+
+    function updateWeightDisplay() {
+      const n = symbols.length;
+      let total = 0;
+      for (let i = 0; i < n; i++) {
+        const v = parseInt(document.getElementById(`w-${i}`)?.value || 0);
+        document.getElementById(`wv-${i}`).textContent = v + "%";
+        total += v;
+      }
+      const el = document.getElementById("weight-total");
+      if (el) el.textContent = `總權重：${total}%（提交時自動正規化）`;
+    }
+
+    function getWeights() {
+      const mode = document.getElementById("weight-mode").value;
+      if (mode === "equal") return null;
+      const n = symbols.length;
+      const weights = [];
+      for (let i = 0; i < n; i++) {
+        weights.push(parseInt(document.getElementById(`w-${i}`)?.value || 0));
+      }
+      return weights;
+    }
+
+    // ─── Analysis ──────────────────────────────────────────────────────────────
+    async function runAnalysis() {
+      if (symbols.length < 2) { showError("至少需要 2 檔股票"); return; }
+      setLoading(true);
+      hideError();
+      document.getElementById("results").classList.add("hidden");
+
+      const payload = {
+        symbols,
+        period: document.getElementById("period").value,
+        weights: getWeights(),
+      };
+
+      try {
+        const resp = await fetch("/api/portfolio/analyze", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        const data = await resp.json();
+        if (!resp.ok) throw new Error(data.detail || resp.statusText);
+        renderResults(data);
+      } catch (e) {
+        showError("分析失敗：" + e.message);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    // ─── Render Results ────────────────────────────────────────────────────────
+    function renderResults(data) {
+      // Portfolio KPIs
+      const pm = data.portfolio_metrics;
+      document.getElementById("portfolio-kpis").innerHTML = [
+        { label: "組合總報酬", value: pm.total_return_pct, fmt: "pct" },
+        { label: "年化報酬率", value: pm.annualized_return_pct, fmt: "pct" },
+        { label: "年化波動率", value: pm.annualized_volatility_pct, fmt: "pct", neutral: true },
+        { label: "Sharpe Ratio", value: pm.sharpe_ratio, fmt: "num" },
+        { label: "Sortino Ratio", value: pm.sortino_ratio, fmt: "num" },
+        { label: "最大回撤", value: pm.max_drawdown_pct, fmt: "pct", invert: true },
+        { label: "Calmar Ratio", value: pm.calmar_ratio, fmt: "num" },
+        { label: "分散化比率", value: pm.diversification_ratio, fmt: "num", neutral: true },
+        { label: "交易天數", value: pm.trading_days, fmt: "int", neutral: true },
+      ].map(m => kpiCard(m)).join("");
+
+      document.getElementById("portfolio-info").textContent =
+        `分析期間：${data.start_date} ~ ${data.end_date} ｜ 股票：${data.symbols.join(", ")} ｜ 權重：${data.weights.map(w => (w*100).toFixed(1)+'%').join(", ")}`;
+
+      // Asset table
+      const tbody = document.getElementById("asset-table-body");
+      tbody.innerHTML = data.asset_metrics.map((m, i) => {
+        const color = PALETTE[data.symbols.indexOf(m.symbol) % PALETTE.length];
+        return `
+          <tr class="table-row">
+            <td><span style="color:${color};font-weight:700">${m.symbol}</span></td>
+            <td class="${m.total_return_pct >= 0 ? 'positive' : 'negative'}">${fmt(m.total_return_pct, 'pct')}</td>
+            <td class="${m.annualized_return_pct >= 0 ? 'positive' : 'negative'}">${fmt(m.annualized_return_pct, 'pct')}</td>
+            <td class="neutral">${fmt(m.annualized_volatility_pct, 'pct')}</td>
+            <td class="${m.sharpe_ratio >= 1 ? 'positive' : m.sharpe_ratio >= 0 ? 'neutral' : 'negative'}">${fmt(m.sharpe_ratio, 'num')}</td>
+            <td class="${m.sortino_ratio >= 1 ? 'positive' : m.sortino_ratio >= 0 ? 'neutral' : 'negative'}">${fmt(m.sortino_ratio, 'num')}</td>
+            <td class="negative">${fmt(m.max_drawdown_pct, 'pct')}</td>
+            <td class="${m.calmar_ratio >= 1 ? 'positive' : 'neutral'}">${fmt(m.calmar_ratio, 'num')}</td>
+            <td class="neutral">${fmt(m.win_rate_pct, 'pct')}</td>
+            <td class="neutral">${fmt(m.beta_vs_portfolio, 'num')}</td>
+          </tr>`;
+      }).join("");
+
+      // Charts
+      renderPriceChart(data);
+      renderCorrHeatmap(data);
+
+      document.getElementById("results").classList.remove("hidden");
+    }
+
+    function kpiCard({ label, value, fmt: fmtType, neutral, invert }) {
+      let cls = "neutral";
+      if (!neutral) {
+        const isPos = invert ? value >= 0 : value >= 0;
+        cls = (invert ? value >= 0 : value >= 0) ? "positive" : "negative";
+        if (invert && value < 0) cls = "negative"; // drawdown always red
+        if (!invert && value < 0) cls = "negative";
+      }
+      return `
+        <div class="metric-card">
+          <div class="metric-value ${cls}">${fmt(value, fmtType)}</div>
+          <div class="metric-label">${label}</div>
+        </div>`;
+    }
+
+    function fmt(v, type) {
+      if (v === null || v === undefined) return "—";
+      if (type === "pct") return (v >= 0 ? "+" : "") + v.toFixed(2) + "%";
+      if (type === "num") return v.toFixed(3);
+      if (type === "int") return Math.round(v).toLocaleString();
+      return v;
+    }
+
+    // ─── Price Chart (Canvas line chart) ─────────────────────────────────────
+    function renderPriceChart(data) {
+      const canvas = document.getElementById("price-chart");
+      const ctx = canvas.getContext("2d");
+      const dpr = window.devicePixelRatio || 1;
+      const W = canvas.offsetWidth || 480;
+      const H = 220;
+      canvas.width = W * dpr;
+      canvas.height = H * dpr;
+      ctx.scale(dpr, dpr);
+      ctx.clearRect(0, 0, W, H);
+
+      const PAD = { top: 20, right: 20, bottom: 30, left: 40 };
+      const plotW = W - PAD.left - PAD.right;
+      const plotH = H - PAD.top - PAD.bottom;
+
+      // Collect all series
+      const allSeries = [
+        ...data.symbols.map((s, i) => ({
+          label: s,
+          values: data.normalized_prices[s],
+          color: PALETTE[i % PALETTE.length],
+          lineWidth: 1.5,
+        })),
+        {
+          label: "Portfolio",
+          values: data.portfolio_curve,
+          color: "#ffffff",
+          lineWidth: 2.5,
+        },
+      ];
+
+      const allVals = allSeries.flatMap(s => s.values).filter(v => isFinite(v));
+      const minV = Math.min(...allVals);
+      const maxV = Math.max(...allVals);
+      const range = maxV - minV || 1;
+      const n = data.dates.length;
+
+      const toX = i => PAD.left + (i / (n - 1)) * plotW;
+      const toY = v => PAD.top + (1 - (v - minV) / range) * plotH;
+
+      // Grid
+      ctx.strokeStyle = "#1e293b";
+      ctx.lineWidth = 0.5;
+      for (let g = 0; g <= 4; g++) {
+        const y = PAD.top + (g / 4) * plotH;
+        ctx.beginPath(); ctx.moveTo(PAD.left, y); ctx.lineTo(PAD.left + plotW, y); ctx.stroke();
+        const val = maxV - (g / 4) * range;
+        ctx.fillStyle = "#64748b";
+        ctx.font = "10px sans-serif";
+        ctx.fillText(val.toFixed(0), 2, y + 4);
+      }
+
+      // X axis labels (quarterly)
+      const labelStep = Math.max(1, Math.floor(n / 5));
+      ctx.fillStyle = "#64748b";
+      ctx.font = "10px sans-serif";
+      for (let i = 0; i < n; i += labelStep) {
+        const x = toX(i);
+        const d = data.dates[i] || "";
+        ctx.fillText(d.slice(5), x - 12, H - 6);
+      }
+
+      // Series lines
+      for (const { values, color, lineWidth } of allSeries) {
+        ctx.beginPath();
+        ctx.strokeStyle = color;
+        ctx.lineWidth = lineWidth;
+        ctx.lineJoin = "round";
+        values.forEach((v, i) => {
+          const x = toX(i), y = toY(v);
+          i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+        });
+        ctx.stroke();
+      }
+
+      // Legend
+      let lx = PAD.left;
+      allSeries.forEach(({ label, color }) => {
+        ctx.fillStyle = color;
+        ctx.fillRect(lx, 4, 12, 3);
+        ctx.fillStyle = "#94a3b8";
+        ctx.font = "9px sans-serif";
+        ctx.fillText(label, lx + 15, 9);
+        lx += ctx.measureText(label).width + 30;
+      });
+    }
+
+    // ─── Correlation Heatmap ───────────────────────────────────────────────────
+    function renderCorrHeatmap(data) {
+      const canvas = document.getElementById("corr-chart");
+      const ctx = canvas.getContext("2d");
+      const dpr = window.devicePixelRatio || 1;
+      const W = canvas.offsetWidth || 480;
+      const H = 220;
+      canvas.width = W * dpr;
+      canvas.height = H * dpr;
+      ctx.scale(dpr, dpr);
+      ctx.clearRect(0, 0, W, H);
+
+      const labels = data.correlation_labels;
+      const matrix = data.correlation_matrix;
+      const n = labels.length;
+
+      const labelPad = 42;
+      const cellW = Math.min(60, (W - labelPad) / n);
+      const cellH = Math.min(60, (H - labelPad) / n);
+      const gridW = cellW * n;
+      const gridH = cellH * n;
+      const offX = (W - labelPad - gridW) / 2 + labelPad;
+      const offY = labelPad + (H - labelPad - gridH) / 2;
+
+      // Color: correlation → hsl
+      function corrColor(v) {
+        // -1 → red, 0 → dark, +1 → green
+        if (v >= 0) {
+          const g = Math.round(30 + v * 180);
+          return `rgb(20, ${g}, 20)`;
+        } else {
+          const r = Math.round(30 + (-v) * 180);
+          return `rgb(${r}, 20, 20)`;
+        }
+      }
+
+      for (let r = 0; r < n; r++) {
+        for (let c = 0; c < n; c++) {
+          const v = matrix[r][c];
+          const x = offX + c * cellW;
+          const y = offY + r * cellH;
+          ctx.fillStyle = corrColor(v);
+          ctx.fillRect(x, y, cellW - 1, cellH - 1);
+
+          // Value text
+          ctx.fillStyle = "#e4e4e7";
+          ctx.font = `bold ${Math.min(11, cellW * 0.3)}px sans-serif`;
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+          ctx.fillText(v.toFixed(2), x + cellW / 2, y + cellH / 2);
+        }
+
+        // Row label
+        ctx.fillStyle = PALETTE[r % PALETTE.length];
+        ctx.font = "bold 10px sans-serif";
+        ctx.textAlign = "right";
+        ctx.textBaseline = "middle";
+        ctx.fillText(labels[r], offX - 4, offY + r * cellH + cellH / 2);
+
+        // Col label
+        ctx.fillStyle = PALETTE[r % PALETTE.length];
+        ctx.font = "bold 10px sans-serif";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "bottom";
+        ctx.fillText(labels[r], offX + r * cellW + cellW / 2, offY - 4);
+      }
+    }
+
+    // ─── UI helpers ───────────────────────────────────────────────────────────
+    function setLoading(on) {
+      document.getElementById("run-btn").disabled = on;
+      document.getElementById("spinner").classList.toggle("hidden", !on);
+      document.getElementById("status-msg").textContent = on ? "分析中，請稍候…" : "";
+    }
+
+    function showError(msg) {
+      const el = document.getElementById("error-msg");
+      el.textContent = msg;
+      el.classList.remove("hidden");
+    }
+    function hideError() {
+      document.getElementById("error-msg").classList.add("hidden");
+    }
+  </script>
+</body>
+</html>

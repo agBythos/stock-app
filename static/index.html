@@ -1,0 +1,3203 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+    <title>股票分析平台 | Stock Analysis Pro</title>
+    
+    <!-- PWA Meta Tags -->
+    <link rel="manifest" href="/static/manifest.json">
+    <meta name="theme-color" content="#6366f1">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="StockPro">
+    <link rel="apple-touch-icon" href="/static/icon-192.png">
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: #0a0e27;
+            color: #e4e4e7;
+            overflow-x: hidden;
+        }
+
+        .gradient-border {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 2px;
+            border-radius: 0.5rem;
+        }
+
+        .gradient-border-inner {
+            background: #0f172a;
+            border-radius: 0.4rem;
+            padding: 1rem;
+        }
+
+        .chart-container {
+            position: relative;
+            background: #0f172a;
+            border-radius: 0.5rem;
+            overflow: hidden;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
+            width: 100%;
+        }
+
+        .loading-spinner {
+            border: 3px solid #1e293b;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            transition: all 0.3s ease;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px -10px rgba(102, 126, 234, 0.6);
+        }
+
+        .btn-secondary {
+            background: #1e293b;
+            border: 1px solid #334155;
+            transition: all 0.3s ease;
+        }
+
+        .btn-secondary:hover {
+            background: #334155;
+            border-color: #667eea;
+        }
+
+        .btn-secondary.active {
+            background: #667eea;
+            border-color: #667eea;
+        }
+
+        .stat-card {
+            background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+            border: 1px solid #334155;
+            border-radius: 0.5rem;
+            padding: 1rem;
+            transition: all 0.3s ease;
+        }
+
+        .stat-card:hover {
+            border-color: #667eea;
+            transform: translateY(-2px);
+        }
+
+        .positive {
+            color: #22c55e;
+        }
+
+        .negative {
+            color: #ef4444;
+        }
+
+        .signal-buy {
+            background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
+            color: white;
+            padding: 0.5rem 1rem;
+            border-radius: 0.375rem;
+            font-weight: 600;
+            display: inline-block;
+        }
+
+        .signal-sell {
+            background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+            color: white;
+            padding: 0.5rem 1rem;
+            border-radius: 0.375rem;
+            font-weight: 600;
+            display: inline-block;
+        }
+
+        .signal-hold {
+            background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+            color: white;
+            padding: 0.5rem 1rem;
+            border-radius: 0.375rem;
+            font-weight: 600;
+            display: inline-block;
+        }
+
+        .opacity-50 {
+            opacity: 0.5;
+        }
+
+        .cursor-not-allowed {
+            cursor: not-allowed;
+        }
+
+        table {
+            border-collapse: collapse;
+        }
+
+        table th {
+            position: sticky;
+            top: 0;
+            background: #0f172a;
+            z-index: 10;
+        }
+
+        @media (max-width: 768px) {
+            body {
+                font-size: 14px;
+            }
+
+            .chart-container {
+                margin-left: -1rem;
+                margin-right: -1rem;
+                border-radius: 0;
+                margin-bottom: 1.5rem;
+            }
+
+            #mainChart {
+                height: 300px !important;
+            }
+
+            #rsiChart, #macdChart, #equityChart {
+                height: 150px !important;
+            }
+
+            .btn-secondary, .btn-primary {
+                min-width: 44px;
+                min-height: 44px;
+                padding: 0.75rem 1rem;
+                font-size: 14px;
+            }
+
+            .stat-card {
+                padding: 0.75rem;
+            }
+
+            .stat-card .text-sm {
+                font-size: 12px;
+            }
+
+            .stat-card .text-2xl {
+                font-size: 1.25rem;
+            }
+
+            #symbolInput, #backtestStrategy, #backtestStartDate, #backtestEndDate, #backtestCapital {
+                width: 100%;
+                min-height: 44px;
+                font-size: 16px;
+            }
+
+            .gradient-border-inner h3 {
+                font-size: 1.125rem;
+            }
+
+            .signal-buy, .signal-sell, .signal-hold {
+                padding: 0.625rem 1.25rem;
+                font-size: 14px;
+            }
+
+            h1 {
+                font-size: 1.5rem;
+            }
+
+            /* Ensure charts have proper spacing */
+            .grid.gap-6 {
+                gap: 1.5rem;
+            }
+
+            /* Make stock info cards stack vertically */
+            .grid.md\\:grid-cols-4 {
+                grid-template-columns: repeat(2, 1fr);
+                gap: 0.75rem;
+            }
+
+            /* Backtest settings stack on mobile */
+            .grid.lg\\:grid-cols-4 {
+                grid-template-columns: 1fr;
+            }
+
+            /* Trade table responsive */
+            table {
+                font-size: 12px;
+            }
+
+            table th, table td {
+                padding: 0.5rem !important;
+            }
+
+            /* Horizontal scroll for trade table */
+            .overflow-x-auto {
+                -webkit-overflow-scrolling: touch;
+            }
+        }
+
+        /* ── Phase 9: Help Tooltip & Modal ─────────────────────────────── */
+        .help-tooltip {
+            position: relative;
+            display: inline-block;
+            cursor: pointer;
+            margin-left: 0.5rem;
+            vertical-align: middle;
+        }
+        .help-tooltip .tooltip-icon {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 20px;
+            height: 20px;
+            background: rgba(99, 102, 241, 0.2);
+            border: 1px solid rgba(99, 102, 241, 0.5);
+            border-radius: 50%;
+            font-size: 11px;
+            font-style: normal;
+            color: #a78bfa;
+            transition: all 0.2s ease;
+        }
+        .help-tooltip:hover .tooltip-icon {
+            background: rgba(99, 102, 241, 0.4);
+            border-color: #818cf8;
+            color: white;
+        }
+        .help-tooltip .tooltip-text {
+            visibility: hidden;
+            opacity: 0;
+            width: 240px;
+            background: #1e293b;
+            border: 1px solid #475569;
+            color: #e2e8f0;
+            text-align: left;
+            border-radius: 8px;
+            padding: 10px 12px;
+            font-size: 13px;
+            font-weight: normal;
+            line-height: 1.5;
+            position: absolute;
+            z-index: 100;
+            left: 50%;
+            transform: translateX(-50%);
+            top: calc(100% + 8px);
+            transition: opacity 0.2s ease;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+        }
+        .help-tooltip .tooltip-text::before {
+            content: '';
+            position: absolute;
+            bottom: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            border: 6px solid transparent;
+            border-bottom-color: #475569;
+        }
+        .help-tooltip:hover .tooltip-text,
+        .help-tooltip:focus-within .tooltip-text {
+            visibility: visible;
+            opacity: 1;
+        }
+
+        /* Help modal */
+        #helpModal {
+            transition: opacity 0.2s ease;
+        }
+        #helpModal.hidden {
+            display: none !important;
+        }
+        .help-section-title {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-weight: 700;
+            font-size: 1rem;
+            color: #a78bfa;
+            margin-bottom: 6px;
+        }
+        .help-section-body {
+            color: #94a3b8;
+            font-size: 0.875rem;
+            line-height: 1.6;
+            padding-left: 1.5rem;
+            margin-bottom: 1rem;
+        }
+        .help-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 14px;
+            background: rgba(99,102,241,0.15);
+            border: 1px solid rgba(99,102,241,0.4);
+            border-radius: 9999px;
+            font-size: 13px;
+            font-weight: 600;
+            color: #a78bfa;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            white-space: nowrap;
+        }
+        .help-btn:hover {
+            background: rgba(99,102,241,0.3);
+            border-color: #818cf8;
+            color: white;
+        }
+
+        /* ── Phase 9: UX — toast notification ───────────────────────────── */
+        #toastContainer {
+            position: fixed;
+            bottom: 1.5rem;
+            right: 1.5rem;
+            z-index: 9999;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            pointer-events: none;
+        }
+        .toast {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 12px 18px;
+            border-radius: 10px;
+            font-size: 14px;
+            font-weight: 500;
+            color: white;
+            opacity: 0;
+            transform: translateX(2rem);
+            transition: opacity 0.3s ease, transform 0.3s ease;
+            pointer-events: auto;
+            max-width: 340px;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+        }
+        .toast.show {
+            opacity: 1;
+            transform: translateX(0);
+        }
+        .toast.success { background: #15803d; border: 1px solid #22c55e; }
+        .toast.error   { background: #991b1b; border: 1px solid #ef4444; }
+        .toast.info    { background: #1d4ed8; border: 1px solid #60a5fa; }
+        .toast.warn    { background: #92400e; border: 1px solid #fbbf24; }
+    </style>
+</head>
+<body class="min-h-screen">
+    <!-- Header -->
+    <header class="bg-gradient-to-r from-slate-900 to-slate-800 border-b border-slate-700 sticky top-0 z-50">
+        <div class="container mx-auto px-4 py-4">
+            <div class="flex items-center justify-between flex-wrap gap-4">
+                <h1 class="text-2xl md:text-3xl font-bold bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
+                    📈 Stock Analysis Pro
+                </h1>
+                <div class="flex items-center gap-3 w-full md:w-auto">
+                    <input 
+                        type="text" 
+                        id="symbolInput" 
+                        placeholder="輸入股票代碼 (e.g., AAPL, 2330.TW)"
+                        class="flex-1 md:w-64 px-4 py-2 bg-slate-800 border border-slate-600 rounded-lg focus:outline-none focus:border-purple-500 text-white placeholder-slate-400"
+                    />
+                    <button 
+                        onclick="searchStock()" 
+                        class="btn-primary px-6 py-2 rounded-lg font-semibold text-white whitespace-nowrap"
+                    >
+                        搜尋
+                    </button>
+                    <button 
+                        onclick="toggleHelp()"
+                        class="help-btn"
+                        title="使用說明"
+                    >
+                        ❓ 說明
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="container mx-auto px-4 py-6">
+        <!-- Loading Overlay -->
+        <div id="loadingOverlay" class="hidden fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
+            <div class="text-center">
+                <div class="loading-spinner mx-auto mb-4"></div>
+                <p class="text-lg text-slate-300">載入中...</p>
+            </div>
+        </div>
+
+        <!-- Stock Info -->
+        <div id="stockInfo" class="mb-6">
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div class="stat-card">
+                    <div class="text-sm text-slate-400 mb-1">股票代碼</div>
+                    <div class="text-2xl font-bold" id="symbolDisplay">-</div>
+                </div>
+                <div class="stat-card">
+                    <div class="text-sm text-slate-400 mb-1">股票名稱</div>
+                    <div class="text-2xl font-bold" id="nameDisplay">-</div>
+                </div>
+                <div class="stat-card">
+                    <div class="text-sm text-slate-400 mb-1">現價</div>
+                    <div class="text-2xl font-bold" id="priceDisplay">-</div>
+                </div>
+                <div class="stat-card">
+                    <div class="text-sm text-slate-400 mb-1">漲跌幅</div>
+                    <div class="text-2xl font-bold" id="changeDisplay">-</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Phase 8B: WebSocket Real-time Dashboard -->
+        <div id="wsPanel" class="mb-6 hidden">
+            <div class="gradient-border">
+                <div class="gradient-border-inner">
+                    <div class="flex items-center justify-between mb-3 flex-wrap gap-3">
+                        <div class="flex items-center gap-3">
+                            <h3 class="font-semibold text-lg">⚡ 即時行情 (WebSocket)</h3>
+                            <!-- Connection status light -->
+                            <span id="wsStatusDot" title="連線狀態"
+                                  style="display:inline-block;width:12px;height:12px;border-radius:50%;background:#ef4444;box-shadow:0 0 6px #ef4444;transition:all 0.3s;"></span>
+                            <span id="wsStatusText" class="text-sm text-slate-400">斷線</span>
+                        </div>
+                        <div class="flex gap-2">
+                            <button onclick="wsConnect()" id="wsBtnConnect"
+                                class="btn-primary px-4 py-1 rounded-lg text-sm font-semibold text-white">
+                                連線
+                            </button>
+                            <button onclick="wsDisconnect()" id="wsBtnDisconnect"
+                                class="btn-secondary px-4 py-1 rounded-lg text-sm font-semibold text-white hidden">
+                                斷線
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <!-- Current Price -->
+                        <div class="stat-card text-center">
+                            <div class="text-sm text-slate-400 mb-1">即時價格</div>
+                            <div class="text-3xl font-bold" id="wsPrice">--</div>
+                            <div class="text-xs text-slate-500 mt-1" id="wsLastUpdate">尚未更新</div>
+                        </div>
+                        <!-- Day Change -->
+                        <div class="stat-card text-center">
+                            <div class="text-sm text-slate-400 mb-1">日漲跌幅</div>
+                            <div class="text-3xl font-bold" id="wsChange">--%</div>
+                            <div class="text-xs text-slate-500 mt-1" id="wsPrevClose">前收：--</div>
+                        </div>
+                        <!-- Volume -->
+                        <div class="stat-card text-center">
+                            <div class="text-sm text-slate-400 mb-1">成交量</div>
+                            <div class="text-3xl font-bold" id="wsVolume">--</div>
+                            <div class="text-xs text-slate-500 mt-1" id="wsSource">來源：--</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Time Range Buttons -->
+        <div class="mb-4 flex flex-wrap gap-2">
+            <button onclick="changeTimeRange('1M')" class="btn-secondary px-4 py-2 rounded-lg font-semibold text-white text-sm md:text-base" data-range="1M">1個月</button>
+            <button onclick="changeTimeRange('3M')" class="btn-secondary active px-4 py-2 rounded-lg font-semibold text-white text-sm md:text-base" data-range="3M">3個月</button>
+            <button onclick="changeTimeRange('6M')" class="btn-secondary px-4 py-2 rounded-lg font-semibold text-white text-sm md:text-base" data-range="6M">6個月</button>
+            <button onclick="changeTimeRange('1Y')" class="btn-secondary px-4 py-2 rounded-lg font-semibold text-white text-sm md:text-base" data-range="1Y">1年</button>
+            <button onclick="changeTimeRange('2Y')" class="btn-secondary px-4 py-2 rounded-lg font-semibold text-white text-sm md:text-base" data-range="2Y">2年</button>
+        </div>
+
+        <!-- Charts -->
+        <div class="grid grid-cols-1 gap-6 mb-6">
+            <!-- Main Chart (Candlestick + Volume) -->
+            <div class="chart-container">
+                <div id="mainChart" style="height: 500px;"></div>
+            </div>
+
+            <!-- RSI Chart -->
+            <div class="chart-container">
+                <div class="px-4 py-2 border-b border-slate-700">
+                    <h3 class="font-semibold text-lg">RSI (相對強弱指標)</h3>
+                </div>
+                <div id="rsiChart" style="height: 200px;"></div>
+            </div>
+
+            <!-- MACD Chart -->
+            <div class="chart-container">
+                <div class="px-4 py-2 border-b border-slate-700">
+                    <h3 class="font-semibold text-lg">MACD</h3>
+                </div>
+                <div id="macdChart" style="height: 200px;"></div>
+            </div>
+        </div>
+
+        <!-- Prediction Signal -->
+        <div class="gradient-border mb-6">
+            <div class="gradient-border-inner">
+                <h3 class="text-xl font-bold mb-4">🤖 AI 預測訊號
+                    <span class="help-tooltip">
+                        <i class="tooltip-icon">?</i>
+                        <span class="tooltip-text">整合隨機森林（RF）與 HMM 市場機制偵測，對當前股票給出 BUY / SELL / HOLD 訊號與信心度。信心度 ≥ 60% 表示模型較有把握。</span>
+                    </span>
+                </h3>
+                <div id="predictionDisplay" class="text-center py-8 text-slate-400">
+                    載入預測中...
+                </div>
+            </div>
+        </div>
+
+        <!-- Simulated Trading Section -->
+        <div class="gradient-border mb-6">
+            <div class="gradient-border-inner">
+                <h3 class="text-xl font-bold mb-6">💼 模擬交易
+                    <span class="help-tooltip">
+                        <i class="tooltip-icon">?</i>
+                        <span class="tooltip-text">虛擬資金交易系統。建立帳戶後可模擬買賣股票，系統會計算台股手續費（0.0855%）與證交稅（0.3%），不涉及真實金錢。</span>
+                    </span>
+                </h3>
+                
+                <!-- Tab Navigation -->
+                <div class="flex gap-2 mb-6 flex-wrap">
+                    <button onclick="showSimTab('accounts')" id="tabAccounts" class="btn-secondary active px-4 py-2 rounded-lg font-semibold text-white">帳戶總覽</button>
+                    <button onclick="showSimTab('create')" id="tabCreate" class="btn-secondary px-4 py-2 rounded-lg font-semibold text-white">建立帳戶</button>
+                    <button onclick="showSimTab('trade')" id="tabTrade" class="btn-secondary px-4 py-2 rounded-lg font-semibold text-white">交易</button>
+                    <button onclick="showSimTab('history')" id="tabHistory" class="btn-secondary px-4 py-2 rounded-lg font-semibold text-white">交易歷史</button>
+                </div>
+
+                <!-- Tab: 帳戶總覽 -->
+                <div id="simTabAccounts" class="sim-tab">
+                    <div class="mb-4">
+                        <button onclick="loadSimAccounts()" class="btn-primary px-4 py-2 rounded-lg font-semibold text-white">
+                            🔄 刷新帳戶列表
+                        </button>
+                    </div>
+                    <div id="simAccountsList" class="space-y-4">
+                        <p class="text-slate-400">載入中...</p>
+                    </div>
+                </div>
+
+                <!-- Tab: 建立帳戶 -->
+                <div id="simTabCreate" class="sim-tab hidden">
+                    <div class="max-w-md">
+                        <div class="mb-4">
+                            <label class="block text-sm font-semibold text-slate-300 mb-2">帳戶名稱</label>
+                            <input type="text" id="simAccountName" placeholder="例如：我的第一個帳戶" class="w-full px-4 py-3 bg-slate-800 border border-slate-600 rounded-lg focus:outline-none focus:border-purple-500 text-white">
+                        </div>
+                        <div class="mb-4">
+                            <label class="block text-sm font-semibold text-slate-300 mb-2">初始資金</label>
+                            <input type="number" id="simInitialCash" value="100000" min="1000" step="1000" class="w-full px-4 py-3 bg-slate-800 border border-slate-600 rounded-lg focus:outline-none focus:border-purple-500 text-white">
+                        </div>
+                        <button onclick="createSimAccount()" class="btn-primary px-6 py-3 rounded-lg font-semibold text-white">
+                            ✅ 建立帳戶
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Tab: 交易 -->
+                <div id="simTabTrade" class="sim-tab hidden">
+                    <div class="mb-4">
+                        <label class="block text-sm font-semibold text-slate-300 mb-2">選擇帳戶</label>
+                        <select id="simTradeAccountSelect" onchange="loadSimAccountDetails()" class="w-full px-4 py-3 bg-slate-800 border border-slate-600 rounded-lg focus:outline-none focus:border-purple-500 text-white">
+                            <option value="">請選擇帳戶</option>
+                        </select>
+                    </div>
+
+                    <!-- 帳戶詳情 -->
+                    <div id="simAccountDetails" class="hidden">
+                        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                            <div class="stat-card">
+                                <div class="text-sm text-slate-400 mb-1">現金</div>
+                                <div class="text-xl font-bold" id="simDetailCash">-</div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="text-sm text-slate-400 mb-1">持倉市值</div>
+                                <div class="text-xl font-bold" id="simDetailMarketValue">-</div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="text-sm text-slate-400 mb-1">總淨值</div>
+                                <div class="text-xl font-bold" id="simDetailNetValue">-</div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="text-sm text-slate-400 mb-1">總損益</div>
+                                <div class="text-xl font-bold" id="simDetailPnL">-</div>
+                            </div>
+                        </div>
+
+                        <!-- 持倉列表 -->
+                        <div class="mb-6">
+                            <h4 class="text-lg font-semibold mb-3">當前持倉</h4>
+                            <div id="simPositionsList" class="overflow-x-auto">
+                                <table class="w-full text-sm">
+                                    <thead>
+                                        <tr class="border-b border-slate-700">
+                                            <th class="px-4 py-3 text-left text-slate-300">股票</th>
+                                            <th class="px-4 py-3 text-right text-slate-300">數量</th>
+                                            <th class="px-4 py-3 text-right text-slate-300">成本均價</th>
+                                            <th class="px-4 py-3 text-right text-slate-300">現價</th>
+                                            <th class="px-4 py-3 text-right text-slate-300">市值</th>
+                                            <th class="px-4 py-3 text-right text-slate-300">損益</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="simPositionsTableBody">
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <!-- 交易表單 -->
+                        <div class="bg-slate-800 rounded-lg p-4 border border-slate-700">
+                            <h4 class="text-lg font-semibold mb-4">下單</h4>
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div>
+                                    <label class="block text-sm font-semibold text-slate-300 mb-2">股票代碼</label>
+                                    <input type="text" id="simTradeSymbol" placeholder="例如：AAPL" class="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-lg focus:outline-none focus:border-purple-500 text-white">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-semibold text-slate-300 mb-2">動作</label>
+                                    <select id="simTradeAction" class="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-lg focus:outline-none focus:border-purple-500 text-white">
+                                        <option value="buy">買入</option>
+                                        <option value="sell">賣出</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-semibold text-slate-300 mb-2">數量</label>
+                                    <input type="number" id="simTradeQuantity" value="10" min="1" class="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-lg focus:outline-none focus:border-purple-500 text-white">
+                                </div>
+                            </div>
+                            <div class="mt-4">
+                                <button onclick="executeSimTrade()" class="btn-primary px-6 py-3 rounded-lg font-semibold text-white">
+                                    📊 執行交易
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tab: 交易歷史 -->
+                <div id="simTabHistory" class="sim-tab hidden">
+                    <div class="mb-4">
+                        <label class="block text-sm font-semibold text-slate-300 mb-2">選擇帳戶</label>
+                        <select id="simHistoryAccountSelect" onchange="loadSimHistory()" class="w-full px-4 py-3 bg-slate-800 border border-slate-600 rounded-lg focus:outline-none focus:border-purple-500 text-white">
+                            <option value="">請選擇帳戶</option>
+                        </select>
+                    </div>
+                    <div id="simHistoryList" class="overflow-x-auto">
+                        <p class="text-slate-400">請選擇帳戶以查看交易歷史</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Backtest Section -->
+        <div class="gradient-border mb-6">
+            <div class="gradient-border-inner">
+                <h3 class="text-xl font-bold mb-6">📊 回測系統
+                    <span class="help-tooltip">
+                        <i class="tooltip-icon">?</i>
+                        <span class="tooltip-text">在歷史數據上模擬策略執行，評估獲利能力。包含 MA Crossover、RF 機器學習、HMM 機制過濾三種策略，依 Sharpe ratio 評估效能。</span>
+                    </span>
+                </h3>
+                
+                <!-- Backtest Settings -->
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+                    <!-- Strategy -->
+                    <div>
+                        <label for="backtestStrategy" class="block text-sm font-semibold text-slate-300 mb-2">策略選擇</label>
+                        <select id="backtestStrategy" onchange="loadStrategyParams(this.value)" class="w-full px-4 py-3 bg-slate-800 border border-slate-600 rounded-lg focus:outline-none focus:border-purple-500 text-white">
+                            <option value="ma_crossover">MA Crossover</option>
+                            <option value="rsi_reversal">RSI Reversal</option>
+                            <option value="macd_signal">MACD Signal</option>
+                            <option value="rf">Random Forest ML</option>
+                        </select>
+                    </div>
+
+                    <!-- Start Date -->
+                    <div>
+                        <label for="backtestStartDate" class="block text-sm font-semibold text-slate-300 mb-2">開始日期</label>
+                        <input type="date" id="backtestStartDate" class="w-full px-4 py-3 bg-slate-800 border border-slate-600 rounded-lg focus:outline-none focus:border-purple-500 text-white">
+                    </div>
+
+                    <!-- End Date -->
+                    <div>
+                        <label for="backtestEndDate" class="block text-sm font-semibold text-slate-300 mb-2">結束日期</label>
+                        <input type="date" id="backtestEndDate" class="w-full px-4 py-3 bg-slate-800 border border-slate-600 rounded-lg focus:outline-none focus:border-purple-500 text-white">
+                    </div>
+
+                    <!-- Initial Capital -->
+                    <div>
+                        <label for="backtestCapital" class="block text-sm font-semibold text-slate-300 mb-2">初始資金</label>
+                        <input type="number" id="backtestCapital" value="100000" min="1000" step="1000" class="w-full px-4 py-3 bg-slate-800 border border-slate-600 rounded-lg focus:outline-none focus:border-purple-500 text-white">
+                    </div>
+                </div>
+
+                <!-- Strategy Parameters Panel (Component 1: StrategyParamsPanel) -->
+                <div id="strategyParamsPanel" class="hidden mb-6 p-4 bg-slate-800 rounded-lg border border-slate-700">
+                    <h4 class="text-sm font-semibold text-slate-300 mb-3">⚙️ 策略參數</h4>
+                    <div id="strategyParamsContent" class="grid grid-cols-1 sm:grid-cols-2 gap-4"></div>
+                </div>
+
+                <!-- Run Backtest Button -->
+                <div class="text-center">
+                    <button onclick="runBacktest()" id="backtestButton" class="btn-primary px-8 py-3 rounded-lg font-semibold text-white text-lg">
+                        🚀 執行回測
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Backtest Results (Initially Hidden) -->
+        <div id="backtestResults" class="hidden">
+            <!-- Performance Summary -->
+            <div class="gradient-border mb-6">
+                <div class="gradient-border-inner">
+                    <h3 class="text-xl font-bold mb-6">📈 回測績效摘要</h3>
+                    
+                    <div class="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6" id="performanceCards">
+                        <div class="stat-card" id="cardTotalReturn">
+                            <div class="text-sm text-slate-400 mb-1">總報酬</div>
+                            <div class="text-2xl font-bold" id="resultTotalReturn">-</div>
+                        </div>
+                        <div class="stat-card" id="cardSharpe">
+                            <div class="text-sm text-slate-400 mb-1">Sharpe Ratio</div>
+                            <div class="text-2xl font-bold" id="resultSharpe">-</div>
+                        </div>
+                        <div class="stat-card" id="cardMaxDrawdown">
+                            <div class="text-sm text-slate-400 mb-1">最大回撤</div>
+                            <div class="text-2xl font-bold" id="resultMaxDrawdown">-</div>
+                        </div>
+                        <div class="stat-card" id="cardWinRate">
+                            <div class="text-sm text-slate-400 mb-1">勝率</div>
+                            <div class="text-2xl font-bold" id="resultWinRate">-</div>
+                        </div>
+                        <div class="stat-card" id="cardTotalTrades">
+                            <div class="text-sm text-slate-400 mb-1">交易次數</div>
+                            <div class="text-2xl font-bold" id="resultTotalTrades">-</div>
+                        </div>
+                        <div class="stat-card" id="cardFinalValue">
+                            <div class="text-sm text-slate-400 mb-1">最終資產</div>
+                            <div class="text-2xl font-bold" id="resultFinalValue">-</div>
+                        </div>
+                    </div>
+
+                    <!-- vs Buy & Hold -->
+                    <div class="bg-slate-800 rounded-lg p-4 border border-slate-700">
+                        <h4 class="text-lg font-semibold mb-3 flex items-center gap-2">
+                            <span>⚔️</span>
+                            <span>策略 vs Buy & Hold</span>
+                        </h4>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <div class="text-sm text-slate-400 mb-1">策略報酬</div>
+                                <div class="text-xl font-bold" id="resultStrategyReturn">-</div>
+                            </div>
+                            <div>
+                                <div class="text-sm text-slate-400 mb-1">Buy & Hold 報酬</div>
+                                <div class="text-xl font-bold" id="resultBuyHoldReturn">-</div>
+                            </div>
+                        </div>
+                        <div class="mt-4 text-center">
+                            <div id="resultComparison" class="text-lg font-semibold"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Equity Curve Chart (Component 3: EnhancedEquityChart) -->
+            <div class="chart-container mb-6">
+                <div class="px-4 py-2 border-b border-slate-700 flex items-center justify-between flex-wrap gap-2">
+                    <h3 class="font-semibold text-lg">💰 權益曲線</h3>
+                    <div class="flex items-center gap-2">
+                        <div class="flex gap-1" id="equityZoomBtns">
+                            <button onclick="setChartTimeRange('1M')" class="btn-secondary text-xs px-2 py-1 rounded">1M</button>
+                            <button onclick="setChartTimeRange('3M')" class="btn-secondary text-xs px-2 py-1 rounded">3M</button>
+                            <button onclick="setChartTimeRange('6M')" class="btn-secondary text-xs px-2 py-1 rounded">6M</button>
+                            <button onclick="setChartTimeRange('All')" class="btn-secondary text-xs px-2 py-1 rounded active">All</button>
+                        </div>
+                        <!-- P3: Y軸模式切換 -->
+                        <div class="flex gap-1 border-l border-slate-600 pl-2 ml-1">
+                            <button onclick="setEquityYAxis('absolute')" id="yAxisAbsBtn" class="btn-secondary text-xs px-2 py-1 rounded active" title="絕對值模式">$</button>
+                            <button onclick="setEquityYAxis('percent')" id="yAxisPctBtn" class="btn-secondary text-xs px-2 py-1 rounded" title="百分比模式">%</button>
+                        </div>
+                    </div>
+                </div>
+                <div id="equityChart" style="height: 300px; position: relative;">
+                    <!-- P3: 進階 tooltip -->
+                    <div id="equityTooltip" style="display:none; position:absolute; z-index:100; background:#1e293b; border:1px solid #334155; border-radius:8px; padding:10px 14px; font-size:12px; pointer-events:none; white-space:nowrap; min-width:180px; box-shadow:0 4px 12px rgba(0,0,0,0.5);">
+                        <div id="equityTooltipDate" class="text-slate-300 font-semibold mb-1" style="font-size:11px;"></div>
+                        <div id="equityTooltipValue" style="color:#8b5cf6;"></div>
+                        <div id="equityTooltipBenchmark" style="color:#64748b;"></div>
+                        <div id="equityTooltipPosition" class="mt-1" style="font-size:11px;"></div>
+                        <div id="equityTooltipPnl" class="font-semibold" style="font-size:11px;"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- P3: RF 特徵重要性 -->
+            <div id="featureImportancePanel" class="hidden mb-6">
+                <div class="gradient-border">
+                    <div class="gradient-border-inner">
+                        <h3 class="text-xl font-bold mb-4">🌲 RF 特徵重要性</h3>
+                        <p class="text-xs text-slate-400 mb-4">RandomForest 模型各特徵對預測結果的貢獻程度</p>
+                        <canvas id="featureImportanceChart" style="width:100%;display:block;"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Trade History (Component 4: Enhanced TradeTable) -->
+            <div class="gradient-border mb-6">
+                <div class="gradient-border-inner">
+                    <div class="flex justify-between items-center mb-4 flex-wrap gap-2">
+                        <h3 class="text-xl font-bold">📋 交易明細（<span id="tradeCount">0</span> 筆）</h3>
+                        <button onclick="exportTradeCSV()" class="btn-secondary text-sm px-3 py-1 rounded">⬇ 匯出 CSV</button>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-sm" id="tradeTable">
+                            <thead>
+                                <tr class="border-b border-slate-700">
+                                    <th onclick="sortTable('entry_date')" class="px-4 py-3 text-left text-slate-300 font-semibold cursor-pointer hover:text-white select-none">進場日期 <span class="text-xs" id="sort_entry_date">↕</span></th>
+                                    <th onclick="sortTable('exit_date')" class="px-4 py-3 text-left text-slate-300 font-semibold cursor-pointer hover:text-white select-none">出場日期 <span class="text-xs" id="sort_exit_date">↕</span></th>
+                                    <th onclick="sortTable('entry_price')" class="px-4 py-3 text-right text-slate-300 font-semibold cursor-pointer hover:text-white select-none">進場價 <span class="text-xs" id="sort_entry_price">↕</span></th>
+                                    <th onclick="sortTable('exit_price')" class="px-4 py-3 text-right text-slate-300 font-semibold cursor-pointer hover:text-white select-none">出場價 <span class="text-xs" id="sort_exit_price">↕</span></th>
+                                    <th class="px-4 py-3 text-right text-slate-300 font-semibold">股數</th>
+                                    <th onclick="sortTable('pnl')" class="px-4 py-3 text-right text-slate-300 font-semibold cursor-pointer hover:text-white select-none">損益 <span class="text-xs" id="sort_pnl">↕</span></th>
+                                    <th onclick="sortTable('pnl_percent')" class="px-4 py-3 text-right text-slate-300 font-semibold cursor-pointer hover:text-white select-none">損益% <span class="text-xs" id="sort_pnl_percent">↕</span></th>
+                                </tr>
+                            </thead>
+                            <tbody id="tradeHistoryTable">
+                                <!-- Trade rows will be inserted here -->
+                            </tbody>
+                            <tfoot id="tradeTableFoot" class="border-t-2 border-slate-600 bg-slate-800/50"></tfoot>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Walk-Forward 驗證結果（嵌入回測結果，有足夠數據時顯示） -->
+            <div id="wfInlineResults" class="hidden">
+                <div class="gradient-border mb-6">
+                    <div class="gradient-border-inner">
+                        <h3 class="text-xl font-bold mb-2 flex items-center gap-2 flex-wrap">
+                            <span>🔄 Walk-Forward 驗證</span>
+                            <span class="text-sm font-normal text-slate-400">防止 look-ahead bias 的滾動時間窗口驗證</span>
+                        </h3>
+                        <p class="text-xs text-slate-500 mb-5">策略在歷史各時段的 out-of-sample 表現，數值越穩定代表策略越可靠。</p>
+
+                        <!-- WF Summary Cards -->
+                        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                            <div class="stat-card">
+                                <div class="text-sm text-slate-400 mb-1">驗證折數</div>
+                                <div class="text-2xl font-bold" id="wfTotalFolds">-</div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="text-sm text-slate-400 mb-1">平均報酬</div>
+                                <div class="text-2xl font-bold" id="wfAvgReturn">-</div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="text-sm text-slate-400 mb-1">報酬波動度 (σ)</div>
+                                <div class="text-2xl font-bold" id="wfReturnStd">-</div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="text-sm text-slate-400 mb-1">最佳 / 最差折</div>
+                                <div class="text-xl font-bold" id="wfBestWorst">-</div>
+                            </div>
+                        </div>
+
+                        <!-- Bar Chart -->
+                        <div class="bg-slate-800 rounded-lg p-4 border border-slate-700 mb-6">
+                            <h4 class="text-base font-semibold mb-3 text-slate-300">各折測試期報酬率 (%)</h4>
+                            <canvas id="wfBarChart" style="width:100%;height:180px;display:block;"></canvas>
+                        </div>
+
+                        <!-- Folds Table -->
+                        <div class="overflow-x-auto">
+                            <h4 class="text-base font-semibold mb-3 text-slate-300">各折詳細結果</h4>
+                            <table class="w-full text-sm">
+                                <thead>
+                                    <tr class="border-b border-slate-700">
+                                        <th class="px-3 py-3 text-center text-slate-300 font-semibold">折數</th>
+                                        <th class="px-3 py-3 text-left text-slate-300 font-semibold">訓練期</th>
+                                        <th class="px-3 py-3 text-left text-slate-300 font-semibold">測試期</th>
+                                        <th class="px-3 py-3 text-right text-slate-300 font-semibold">報酬</th>
+                                        <th class="px-3 py-3 text-right text-slate-300 font-semibold">Sharpe</th>
+                                        <th class="px-3 py-3 text-right text-slate-300 font-semibold">最大回撤</th>
+                                        <th class="px-3 py-3 text-right text-slate-300 font-semibold">日勝率</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="wfFoldsTable"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- ================================================================ -->
+        <!-- Walk-Forward 深度分析（獨立執行）                                 -->
+        <!-- ================================================================ -->
+        <div class="gradient-border mb-6">
+            <div class="gradient-border-inner">
+                <h3 class="text-xl font-bold mb-2 flex items-center gap-2">
+                    🔬 Walk-Forward 深度分析
+                </h3>
+                <p class="text-slate-400 text-sm mb-5">獨立執行 Walk-Forward 驗證，自定義訓練/測試窗口大小，測試策略跨時間的穩健性。</p>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-5">
+                    <div>
+                        <label class="block text-sm font-semibold text-slate-300 mb-2">策略</label>
+                        <select id="wfStrategy" class="w-full px-4 py-3 bg-slate-800 border border-slate-600 rounded-lg focus:outline-none focus:border-purple-500 text-white">
+                            <option value="ma_crossover">MA Crossover</option>
+                            <option value="rsi_reversal">RSI Reversal</option>
+                            <option value="macd_signal">MACD Signal</option>
+                            <option value="rf">Random Forest ML</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-slate-300 mb-2">總起始日期</label>
+                        <input type="date" id="wfStartDate" class="w-full px-4 py-3 bg-slate-800 border border-slate-600 rounded-lg focus:outline-none focus:border-purple-500 text-white">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-slate-300 mb-2">總結束日期</label>
+                        <input type="date" id="wfEndDate" class="w-full px-4 py-3 bg-slate-800 border border-slate-600 rounded-lg focus:outline-none focus:border-purple-500 text-white">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-slate-300 mb-2">訓練窗口（月）</label>
+                        <input type="number" id="wfTrainMonths" value="6" min="3" max="24"
+                               class="w-full px-4 py-3 bg-slate-800 border border-slate-600 rounded-lg focus:outline-none focus:border-purple-500 text-white">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-slate-300 mb-2">測試窗口（月）</label>
+                        <input type="number" id="wfTestMonths" value="1" min="1" max="12"
+                               class="w-full px-4 py-3 bg-slate-800 border border-slate-600 rounded-lg focus:outline-none focus:border-purple-500 text-white">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-slate-300 mb-2">初始資金</label>
+                        <input type="number" id="wfCapital" value="100000" min="1000" step="1000"
+                               class="w-full px-4 py-3 bg-slate-800 border border-slate-600 rounded-lg focus:outline-none focus:border-purple-500 text-white">
+                    </div>
+                </div>
+
+                <div class="text-center">
+                    <button onclick="runWalkForward()" id="wfButton"
+                            class="btn-primary px-8 py-3 rounded-lg font-semibold text-white text-lg">
+                        🔬 執行 Walk-Forward 分析
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Walk-Forward 深度分析結果 -->
+        <div id="wfAnalysisResults" class="hidden mb-6">
+            <div class="gradient-border mb-6">
+                <div class="gradient-border-inner">
+                    <h3 class="text-xl font-bold mb-5">📊 Walk-Forward 分析結果</h3>
+
+                    <!-- Summary Cards -->
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                        <div class="stat-card">
+                            <div class="text-sm text-slate-400 mb-1">總窗口數</div>
+                            <div class="text-2xl font-bold" id="wfaTotalWindows">-</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="text-sm text-slate-400 mb-1">平均報酬</div>
+                            <div class="text-2xl font-bold" id="wfaAvgReturn">-</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="text-sm text-slate-400 mb-1">報酬標準差 (σ)</div>
+                            <div class="text-2xl font-bold" id="wfaReturnStd">-</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="text-sm text-slate-400 mb-1">最佳 / 最差</div>
+                            <div class="text-xl font-bold" id="wfaBestWorst">-</div>
+                        </div>
+                    </div>
+
+                    <!-- Extra Stats Row -->
+                    <div class="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6">
+                        <div class="stat-card">
+                            <div class="text-sm text-slate-400 mb-1">平均最大回撤</div>
+                            <div class="text-xl font-bold" id="wfaAvgDrawdown">-</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="text-sm text-slate-400 mb-1">成功窗口率</div>
+                            <div class="text-xl font-bold" id="wfaSuccessRate">-</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="text-sm text-slate-400 mb-1">總交易次數</div>
+                            <div class="text-xl font-bold" id="wfaTotalTrades">-</div>
+                        </div>
+                    </div>
+
+                    <!-- Bar Chart -->
+                    <div class="bg-slate-800 rounded-lg p-4 border border-slate-700 mb-6">
+                        <h4 class="text-base font-semibold mb-3 text-slate-300">各窗口測試期報酬率 (%)</h4>
+                        <canvas id="wfaBarChart" style="width:100%;height:200px;display:block;"></canvas>
+                    </div>
+
+                    <!-- Windows Table -->
+                    <div class="overflow-x-auto">
+                        <h4 class="text-base font-semibold mb-3 text-slate-300">各窗口詳細結果</h4>
+                        <table class="w-full text-sm">
+                            <thead>
+                                <tr class="border-b border-slate-700">
+                                    <th class="px-3 py-3 text-center text-slate-300 font-semibold">窗口</th>
+                                    <th class="px-3 py-3 text-left text-slate-300 font-semibold">訓練期</th>
+                                    <th class="px-3 py-3 text-left text-slate-300 font-semibold">測試期</th>
+                                    <th class="px-3 py-3 text-right text-slate-300 font-semibold">報酬</th>
+                                    <th class="px-3 py-3 text-right text-slate-300 font-semibold">最大回撤</th>
+                                    <th class="px-3 py-3 text-right text-slate-300 font-semibold">交易次數</th>
+                                    <th class="px-3 py-3 text-right text-slate-300 font-semibold">狀態</th>
+                                </tr>
+                            </thead>
+                            <tbody id="wfaWindowsTable"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-slate-900 border-t border-slate-700 py-6 mt-12">
+        <div class="container mx-auto px-4 text-center text-slate-400">
+            <p>© 2026 Stock Analysis Pro. 資料僅供參考，投資有風險。</p>
+        </div>
+    </footer>
+
+    <script>
+        // Register Service Worker
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/static/service-worker.js')
+                    .then(registration => {
+                        console.log('ServiceWorker registered:', registration.scope);
+                    })
+                    .catch(error => {
+                        console.log('ServiceWorker registration failed:', error);
+                    });
+            });
+        }
+
+        // Global variables
+        let mainChart, candleSeries, volumeSeries, ma5Series, ma20Series, ma60Series;
+        let rsiChart, rsiSeries, rsiOverbought, rsiOversold;
+        let macdChart, macdHistogramSeries, macdSignalSeries, macdMacdSeries;
+        let equityChart, equitySeries, buyHoldSeries;
+        let currentSymbol = 'AAPL';
+        let currentRange = '3M';
+        // Phase 2 globals
+        let currentBacktestTrades = [];   // for CSV export
+        let currentEquityCurve = [];      // for time zoom
+        let allStrategiesCache = null;    // cached GET /api/backtest/strategies
+        let sortState = { field: null, dir: 'asc' }; // trade table sort
+        // P3 globals
+        let equityYAxisMode = 'absolute'; // 'absolute' | 'percent'
+
+        // Initialize charts on page load
+        window.addEventListener('load', () => {
+            if (typeof LightweightCharts === 'undefined') {
+                console.error('LightweightCharts not loaded');
+                return;
+            }
+            initCharts();
+            loadStock('AAPL');
+        });
+
+        // Handle Enter key in search input
+        document.getElementById('symbolInput').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                searchStock();
+            }
+        });
+
+        function initCharts() {
+            // Main Chart (Candlestick + Volume)
+            mainChart = LightweightCharts.createChart(document.getElementById('mainChart'), {
+                layout: {
+                    background: { color: '#0f172a' },
+                    textColor: '#94a3b8',
+                },
+                grid: {
+                    vertLines: { color: '#1e293b' },
+                    horzLines: { color: '#1e293b' },
+                },
+                crosshair: {
+                    mode: LightweightCharts.CrosshairMode.Normal,
+                },
+                rightPriceScale: {
+                    borderColor: '#334155',
+                },
+                timeScale: {
+                    borderColor: '#334155',
+                    timeVisible: true,
+                },
+                width: document.getElementById('mainChart').clientWidth,
+                height: 500,
+            });
+
+            candleSeries = mainChart.addCandlestickSeries({
+                upColor: '#22c55e',
+                downColor: '#ef4444',
+                borderUpColor: '#22c55e',
+                borderDownColor: '#ef4444',
+                wickUpColor: '#22c55e',
+                wickDownColor: '#ef4444',
+            });
+
+            volumeSeries = mainChart.addHistogramSeries({
+                color: '#475569',
+                priceFormat: { type: 'volume' },
+                priceScaleId: 'volume',
+            });
+
+            mainChart.priceScale('volume').applyOptions({
+                scaleMargins: { top: 0.8, bottom: 0 },
+            });
+
+            // Moving Averages
+            ma5Series = mainChart.addLineSeries({ color: '#3b82f6', lineWidth: 2, title: 'MA5' });
+            ma20Series = mainChart.addLineSeries({ color: '#f59e0b', lineWidth: 2, title: 'MA20' });
+            ma60Series = mainChart.addLineSeries({ color: '#ef4444', lineWidth: 2, title: 'MA60' });
+
+            // RSI Chart
+            rsiChart = LightweightCharts.createChart(document.getElementById('rsiChart'), {
+                layout: {
+                    background: { color: '#0f172a' },
+                    textColor: '#94a3b8',
+                },
+                grid: {
+                    vertLines: { color: '#1e293b' },
+                    horzLines: { color: '#1e293b' },
+                },
+                rightPriceScale: {
+                    borderColor: '#334155',
+                },
+                timeScale: {
+                    borderColor: '#334155',
+                    visible: false,
+                },
+                width: document.getElementById('rsiChart').clientWidth,
+                height: 200,
+            });
+
+            rsiSeries = rsiChart.addLineSeries({ color: '#8b5cf6', lineWidth: 2 });
+            rsiOverbought = rsiChart.addLineSeries({ color: '#ef4444', lineWidth: 1, lineStyle: 2 });
+            rsiOversold = rsiChart.addLineSeries({ color: '#22c55e', lineWidth: 1, lineStyle: 2 });
+
+            // MACD Chart
+            macdChart = LightweightCharts.createChart(document.getElementById('macdChart'), {
+                layout: {
+                    background: { color: '#0f172a' },
+                    textColor: '#94a3b8',
+                },
+                grid: {
+                    vertLines: { color: '#1e293b' },
+                    horzLines: { color: '#1e293b' },
+                },
+                rightPriceScale: {
+                    borderColor: '#334155',
+                },
+                timeScale: {
+                    borderColor: '#334155',
+                    visible: false,
+                },
+                width: document.getElementById('macdChart').clientWidth,
+                height: 200,
+            });
+
+            macdHistogramSeries = macdChart.addHistogramSeries({
+                color: '#64748b',
+            });
+            macdMacdSeries = macdChart.addLineSeries({ color: '#3b82f6', lineWidth: 2 });
+            macdSignalSeries = macdChart.addLineSeries({ color: '#f59e0b', lineWidth: 2 });
+
+            // Sync time scales
+            mainChart.timeScale().subscribeVisibleTimeRangeChange(() => {
+                const range = mainChart.timeScale().getVisibleRange();
+                if (range) {
+                    try {
+                        rsiChart.timeScale().setVisibleRange(range);
+                        macdChart.timeScale().setVisibleRange(range);
+                    } catch (e) {
+                        // Ignore errors when charts don't have data yet
+                        console.debug('Time scale sync error (expected during init):', e.message);
+                    }
+                }
+            });
+
+            // Responsive resize
+            window.addEventListener('resize', () => {
+                mainChart.applyOptions({ width: document.getElementById('mainChart').clientWidth });
+                rsiChart.applyOptions({ width: document.getElementById('rsiChart').clientWidth });
+                macdChart.applyOptions({ width: document.getElementById('macdChart').clientWidth });
+            });
+        }
+
+        // ============================================================
+        // Phase 8B: WebSocket Real-time Dashboard
+        // ============================================================
+        let _ws = null;
+        let _wsSymbol = null;
+        let _wsReconnectTimer = null;
+        let _wsReconnectDelay = 1000; // ms, doubles each retry up to 30000
+        const WS_MAX_DELAY = 30000;
+
+        function _wsSetStatus(state) {
+            // state: 'connected' | 'reconnecting' | 'disconnected'
+            const dot  = document.getElementById('wsStatusDot');
+            const text = document.getElementById('wsStatusText');
+            const btnConnect    = document.getElementById('wsBtnConnect');
+            const btnDisconnect = document.getElementById('wsBtnDisconnect');
+            if (!dot) return;
+            if (state === 'connected') {
+                dot.style.background = '#22c55e';
+                dot.style.boxShadow  = '0 0 8px #22c55e';
+                text.textContent = '連線中';
+                btnConnect.classList.add('hidden');
+                btnDisconnect.classList.remove('hidden');
+            } else if (state === 'reconnecting') {
+                dot.style.background = '#fbbf24';
+                dot.style.boxShadow  = '0 0 8px #fbbf24';
+                text.textContent = '重連中…';
+                btnConnect.classList.add('hidden');
+                btnDisconnect.classList.add('hidden');
+            } else {
+                dot.style.background = '#ef4444';
+                dot.style.boxShadow  = '0 0 6px #ef4444';
+                text.textContent = '斷線';
+                btnConnect.classList.remove('hidden');
+                btnDisconnect.classList.add('hidden');
+            }
+        }
+
+        function _wsUpdateUI(data) {
+            if (data.error) {
+                console.warn('[WS] Error payload:', data.error);
+                return;
+            }
+            const priceEl    = document.getElementById('wsPrice');
+            const changeEl   = document.getElementById('wsChange');
+            const volumeEl   = document.getElementById('wsVolume');
+            const updateEl   = document.getElementById('wsLastUpdate');
+            const prevCloseEl = document.getElementById('wsPrevClose');
+            const sourceEl   = document.getElementById('wsSource');
+
+            if (priceEl) {
+                priceEl.textContent = data.price != null ? data.price.toFixed(2) : '--';
+            }
+            if (changeEl) {
+                const pct = data.change_pct;
+                changeEl.textContent = pct != null ? (pct >= 0 ? '+' : '') + pct.toFixed(2) + '%' : '--%';
+                changeEl.className = 'text-3xl font-bold ' + (pct >= 0 ? 'positive' : 'negative');
+            }
+            if (volumeEl) {
+                volumeEl.textContent = data.volume != null
+                    ? data.volume.toLocaleString()
+                    : '--';
+            }
+            if (updateEl) {
+                const ts = data.timestamp ? new Date(data.timestamp) : new Date();
+                updateEl.textContent = '更新：' + ts.toLocaleTimeString('zh-TW');
+            }
+            if (prevCloseEl) {
+                prevCloseEl.textContent = '前收：' + (data.prev_close != null ? data.prev_close.toFixed(2) : '--');
+            }
+            if (sourceEl) {
+                sourceEl.textContent = '來源：' + (data.source || '--');
+            }
+        }
+
+        function _wsOpen(symbol) {
+            if (_ws) {
+                _ws.onclose = null; // prevent reconnect loop
+                _ws.close();
+                _ws = null;
+            }
+            clearTimeout(_wsReconnectTimer);
+
+            const protocol = location.protocol === 'https:' ? 'wss' : 'ws';
+            const url = `${protocol}://${location.host}/ws/price/${encodeURIComponent(symbol)}`;
+            console.log('[WS] Connecting:', url);
+            _wsSetStatus('reconnecting');
+
+            _ws = new WebSocket(url);
+
+            _ws.onopen = () => {
+                console.log('[WS] Connected');
+                _wsReconnectDelay = 1000; // reset backoff
+                _wsSetStatus('connected');
+            };
+
+            _ws.onmessage = (event) => {
+                try {
+                    const data = JSON.parse(event.data);
+                    _wsUpdateUI(data);
+                } catch (e) {
+                    console.warn('[WS] Parse error:', e);
+                }
+            };
+
+            _ws.onerror = (err) => {
+                console.warn('[WS] Error', err);
+            };
+
+            _ws.onclose = (event) => {
+                console.log('[WS] Closed, code=', event.code);
+                _ws = null;
+                if (event.code === 1008) {
+                    // Server refused (max connections)
+                    _wsSetStatus('disconnected');
+                    showToast('⚡ WebSocket：伺服器連線數已達上限，請稍後再試', 'warn', 5000);
+                    return;
+                }
+                // Auto-reconnect with exponential backoff
+                _wsSetStatus('reconnecting');
+                const delay = Math.min(_wsReconnectDelay, WS_MAX_DELAY);
+                console.log(`[WS] Reconnecting in ${delay}ms…`);
+                _wsReconnectTimer = setTimeout(() => {
+                    if (_wsSymbol) _wsOpen(_wsSymbol);
+                }, delay);
+                _wsReconnectDelay = Math.min(_wsReconnectDelay * 2, WS_MAX_DELAY);
+            };
+        }
+
+        function wsConnect() {
+            if (!_wsSymbol) {
+                showToast('⚡ 請先搜尋股票', 'warn', 3000);
+                return;
+            }
+            _wsReconnectDelay = 1000;
+            _wsOpen(_wsSymbol);
+        }
+
+        function wsDisconnect() {
+            clearTimeout(_wsReconnectTimer);
+            if (_ws) {
+                _ws.onclose = null;
+                _ws.close();
+                _ws = null;
+            }
+            _wsSetStatus('disconnected');
+        }
+
+        function _wsAttachToSymbol(symbol) {
+            // Called whenever a stock is loaded
+            _wsSymbol = symbol;
+            document.getElementById('wsPanel').classList.remove('hidden');
+            // Auto (re)connect to new symbol
+            _wsReconnectDelay = 1000;
+            _wsOpen(symbol);
+        }
+
+        function searchStock() {
+            const symbol = document.getElementById('symbolInput').value.trim().toUpperCase();
+            if (symbol) {
+                loadStock(symbol);
+            }
+        }
+
+        function changeTimeRange(range) {
+            currentRange = range;
+            // Update button states
+            document.querySelectorAll('[data-range]').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            document.querySelector(`[data-range="${range}"]`).classList.add('active');
+            
+            loadStock(currentSymbol);
+        }
+
+        async function loadStock(symbol) {
+            currentSymbol = symbol;
+            document.getElementById('symbolInput').value = symbol;
+            showLoading(true);
+
+            try {
+                // Fetch stock data
+                const response = await fetch(`/api/stock/${symbol}?range=${currentRange}`);
+                if (!response.ok) throw new Error('股票資料載入失敗');
+                
+                const data = await response.json();
+
+                // Update stock info
+                updateStockInfo(data);
+
+                // Update charts
+                updateCharts(data);
+
+                // Load prediction
+                loadPrediction(symbol);
+
+                // Phase 8B: Attach WebSocket to new symbol
+                _wsAttachToSymbol(symbol);
+
+            } catch (error) {
+                console.error('Error loading stock:', error);
+                const msg = error.message || '';
+                let friendly = '載入失敗，請確認股票代碼是否正確。';
+                if (msg.includes('404') || msg.includes('not found')) friendly = '🔍 找不到此股票，請確認代碼格式（台股：2330.TW，美股：AAPL）。';
+                else if (msg.includes('429') || msg.includes('rate')) friendly = '⏱️ 查詢頻率過高，請稍候片刻再試。';
+                else if (msg.includes('500') || msg.includes('internal')) friendly = '🛠️ 伺服器發生錯誤，請稍後重試。';
+                else if (msg) friendly = `⚠️ ${msg}`;
+                showToast(friendly, 'error', 5000);
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        function updateStockInfo(data) {
+            const info = data.info || {};
+            const latest = data.data && data.data.length > 0 ? data.data[data.data.length - 1] : null;
+
+            document.getElementById('symbolDisplay').textContent = info.symbol || currentSymbol;
+            document.getElementById('nameDisplay').textContent = info.name || '-';
+            
+            if (latest) {
+                const price = latest.close.toFixed(2);
+                document.getElementById('priceDisplay').textContent = `$${price}`;
+
+                if (info.change !== undefined) {
+                    const changePercent = ((info.change / (latest.close - info.change)) * 100).toFixed(2);
+                    const changeClass = info.change >= 0 ? 'positive' : 'negative';
+                    const changeSymbol = info.change >= 0 ? '+' : '';
+                    document.getElementById('changeDisplay').innerHTML = 
+                        `<span class="${changeClass}">${changeSymbol}${changePercent}%</span>`;
+                } else {
+                    document.getElementById('changeDisplay').textContent = '-';
+                }
+            }
+        }
+
+        function updateCharts(data) {
+            const chartData = data.data || [];
+            
+            // Candlestick data
+            const candleData = chartData.map(d => ({
+                time: d.date,
+                open: d.open,
+                high: d.high,
+                low: d.low,
+                close: d.close,
+            }));
+            candleSeries.setData(candleData);
+
+            // Volume data
+            const volumeData = chartData.map(d => ({
+                time: d.date,
+                value: d.volume,
+                color: d.close >= d.open ? '#22c55e80' : '#ef444480',
+            }));
+            volumeSeries.setData(volumeData);
+
+            // Moving averages
+            if (data.indicators?.ma5) {
+                ma5Series.setData(data.indicators.ma5.map((v, i) => ({
+                    time: chartData[i].date,
+                    value: v,
+                })).filter(d => d.value !== null));
+            }
+
+            if (data.indicators?.ma20) {
+                ma20Series.setData(data.indicators.ma20.map((v, i) => ({
+                    time: chartData[i].date,
+                    value: v,
+                })).filter(d => d.value !== null));
+            }
+
+            if (data.indicators?.ma60) {
+                ma60Series.setData(data.indicators.ma60.map((v, i) => ({
+                    time: chartData[i].date,
+                    value: v,
+                })).filter(d => d.value !== null));
+            }
+
+            // RSI
+            if (data.indicators?.rsi) {
+                const rsiData = data.indicators.rsi.map((v, i) => ({
+                    time: chartData[i].date,
+                    value: v,
+                })).filter(d => d.value !== null);
+                
+                rsiSeries.setData(rsiData);
+                
+                // RSI overbought/oversold lines
+                const rsiOverboughtData = rsiData.map(d => ({ time: d.time, value: 70 }));
+                const rsiOversoldData = rsiData.map(d => ({ time: d.time, value: 30 }));
+                rsiOverbought.setData(rsiOverboughtData);
+                rsiOversold.setData(rsiOversoldData);
+            }
+
+            // MACD
+            if (data.indicators?.macd) {
+                const macdData = data.indicators.macd;
+                
+                if (macdData.histogram) {
+                    macdHistogramSeries.setData(macdData.histogram.map((v, i) => ({
+                        time: chartData[i].date,
+                        value: v,
+                        color: v >= 0 ? '#22c55e80' : '#ef444480',
+                    })).filter(d => d.value !== null));
+                }
+
+                if (macdData.macd) {
+                    macdMacdSeries.setData(macdData.macd.map((v, i) => ({
+                        time: chartData[i].date,
+                        value: v,
+                    })).filter(d => d.value !== null));
+                }
+
+                if (macdData.signal) {
+                    macdSignalSeries.setData(macdData.signal.map((v, i) => ({
+                        time: chartData[i].date,
+                        value: v,
+                    })).filter(d => d.value !== null));
+                }
+            }
+
+            // Fit content
+            mainChart.timeScale().fitContent();
+        }
+
+        async function loadPrediction(symbol) {
+            try {
+                const response = await fetch(`/api/stock/${symbol}/predict`);
+                if (!response.ok) throw new Error('預測載入失敗');
+                
+                const prediction = await response.json();
+                displayPrediction(prediction);
+            } catch (error) {
+                console.error('Error loading prediction:', error);
+                document.getElementById('predictionDisplay').innerHTML = 
+                    '<p class="text-slate-400">預測資料暫時無法載入</p>';
+            }
+        }
+
+        function displayPrediction(prediction) {
+            const signal = prediction.signal || 'HOLD';
+            const confidence = prediction.confidence || 0;
+            const reason = prediction.reason || '無詳細說明';
+
+            let signalClass = 'signal-hold';
+            let signalText = '持有';
+            let signalIcon = '⏸️';
+
+            if (signal === 'BUY') {
+                signalClass = 'signal-buy';
+                signalText = '買入';
+                signalIcon = '📈';
+            } else if (signal === 'SELL') {
+                signalClass = 'signal-sell';
+                signalText = '賣出';
+                signalIcon = '📉';
+            }
+
+            document.getElementById('predictionDisplay').innerHTML = `
+                <div class="mb-4">
+                    <span class="${signalClass} text-xl">
+                        ${signalIcon} ${signalText}
+                    </span>
+                </div>
+                <div class="text-lg mb-2">
+                    <span class="text-slate-400">信心度：</span>
+                    <span class="font-bold text-purple-400">${confidence.toFixed(1)}%</span>
+                </div>
+                <div class="text-slate-300 mt-4 max-w-2xl mx-auto">
+                    <p class="text-sm leading-relaxed">${reason}</p>
+                </div>
+            `;
+        }
+
+        function showLoading(show) {
+            const overlay = document.getElementById('loadingOverlay');
+            if (show) {
+                overlay.classList.remove('hidden');
+            } else {
+                overlay.classList.add('hidden');
+            }
+        }
+
+        // Backtest Functions
+        // ================================================================
+        // Phase 2 — Component 1: StrategyParamsPanel
+        // ================================================================
+
+        async function loadStrategyParams(strategyName) {
+            const panel = document.getElementById('strategyParamsPanel');
+            const content = document.getElementById('strategyParamsContent');
+
+            // RF: show params (forward_days, confidence_threshold, retrain_period)
+            // No early return — fall through to normal param rendering
+
+            try {
+                // Use cache to avoid repeated requests
+                if (!allStrategiesCache) {
+                    const resp = await fetch('/api/backtest/strategies');
+                    const data = await resp.json();
+                    allStrategiesCache = data.strategies || [];
+                }
+
+                const strategy = allStrategiesCache.find(s => s.name === strategyName);
+                // parameters may be a dict (API format) or array
+                const paramsRaw = strategy && strategy.parameters;
+                if (!strategy || !paramsRaw || Object.keys(paramsRaw).length === 0) {
+                    panel.classList.add('hidden');
+                    return;
+                }
+
+                // Normalize: dict → array
+                const paramsArr = Array.isArray(paramsRaw)
+                    ? paramsRaw
+                    : Object.entries(paramsRaw).map(([name, spec]) => ({ name, ...spec }));
+
+                panel.classList.remove('hidden');
+                content.innerHTML = paramsArr.map(p => `
+                    <div>
+                        <label class="block text-xs text-slate-400 mb-1">
+                            ${p.description || p.display_name || p.name}
+                            <span class="text-purple-400 ml-1">(${p.min}–${p.max})</span>
+                        </label>
+                        <div class="flex items-center gap-2">
+                            <input type="range"
+                                id="param_range_${p.name}"
+                                min="${p.min}" max="${p.max}" step="${p.step || (p.type === 'float' ? 0.05 : 1)}"
+                                value="${p.default}"
+                                oninput="document.getElementById('param_num_${p.name}').value=this.value"
+                                class="flex-1 accent-purple-500">
+                            <input type="number"
+                                id="param_num_${p.name}"
+                                min="${p.min}" max="${p.max}" step="${p.step || (p.type === 'float' ? 0.05 : 1)}"
+                                value="${p.default}"
+                                oninput="document.getElementById('param_range_${p.name}').value=this.value"
+                                class="w-20 px-2 py-1 text-sm bg-slate-700 border border-slate-600 rounded text-white text-right">
+                        </div>
+                    </div>
+                `).join('');
+
+            } catch (e) {
+                panel.classList.add('hidden');
+                console.warn('Strategy params load failed:', e);
+            }
+        }
+
+        function getStrategyParams() {
+            const params = {};
+            document.querySelectorAll('[id^="param_num_"]').forEach(el => {
+                const name = el.id.replace('param_num_', '');
+                params[name] = parseFloat(el.value);
+            });
+            return params;
+        }
+
+        // ================================================================
+        // Phase 2 — Component 2: Color-coded performance card helper
+        // ================================================================
+
+        function colorCardByThreshold(cardId, value, thresholds) {
+            // thresholds: { good, bad } — value >= good → green; <= bad → red; else neutral
+            const card = document.getElementById(cardId);
+            if (!card) return;
+            card.style.border = '';
+            if (value >= thresholds.good) {
+                card.style.borderColor = '#22c55e';
+                card.style.border = '1px solid #22c55e';
+            } else if (value <= thresholds.bad) {
+                card.style.borderColor = '#ef4444';
+                card.style.border = '1px solid #ef4444';
+            }
+        }
+
+        // ================================================================
+        // Phase 2 — Component 3: Equity chart time zoom & markers
+        // ================================================================
+
+        function setChartTimeRange(range) {
+            if (!equityChart || currentEquityCurve.length === 0) return;
+
+            // Update active button
+            document.querySelectorAll('#equityZoomBtns button').forEach(b => b.classList.remove('active'));
+            event.target.classList.add('active');
+
+            if (range === 'All') {
+                equityChart.timeScale().fitContent();
+                return;
+            }
+
+            const months = range === '1M' ? 1 : range === '3M' ? 3 : 6;
+            const last = currentEquityCurve[currentEquityCurve.length - 1]?.date;
+            if (!last) return;
+
+            const endDate = new Date(last);
+            const startDate = new Date(last);
+            startDate.setMonth(startDate.getMonth() - months);
+
+            equityChart.timeScale().setVisibleRange({
+                from: startDate.toISOString().split('T')[0],
+                to: endDate.toISOString().split('T')[0],
+            });
+        }
+
+        // P3: Y軸切換
+        function setEquityYAxis(mode) {
+            equityYAxisMode = mode;
+            document.getElementById('yAxisAbsBtn').classList.toggle('active', mode === 'absolute');
+            document.getElementById('yAxisPctBtn').classList.toggle('active', mode === 'percent');
+            if (currentEquityCurve.length > 0) {
+                displayEquityCurve(currentEquityCurve);
+            }
+        }
+
+        // P3: RF 特徵重要性橫條圖
+        function displayFeatureImportance(featureImportance) {
+            const panel = document.getElementById('featureImportancePanel');
+            if (!featureImportance || Object.keys(featureImportance).length === 0) {
+                panel.classList.add('hidden');
+                return;
+            }
+            panel.classList.remove('hidden');
+
+            const canvas = document.getElementById('featureImportanceChart');
+            const ctx = canvas.getContext('2d');
+
+            // Sort by importance descending
+            const sorted = Object.entries(featureImportance).sort((a, b) => b[1] - a[1]);
+            const maxVal = sorted[0][1] || 1;
+
+            const paddingLeft = 130;
+            const paddingRight = 55;
+            const paddingTop = 8;
+            const barHeight = 22;
+            const gap = 8;
+            const totalHeight = paddingTop * 2 + sorted.length * (barHeight + gap);
+
+            // Set canvas dimensions
+            canvas.width = canvas.offsetWidth || canvas.parentElement.offsetWidth || 600;
+            canvas.height = totalHeight;
+            canvas.style.height = totalHeight + 'px';
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            // Background
+            ctx.fillStyle = '#0f172a';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            const chartWidth = canvas.width - paddingLeft - paddingRight;
+
+            sorted.forEach(([name, value], i) => {
+                const y = paddingTop + i * (barHeight + gap);
+                const barWidth = Math.max(2, (value / maxVal) * chartWidth);
+
+                // Gradient bar
+                const grad = ctx.createLinearGradient(paddingLeft, 0, paddingLeft + barWidth, 0);
+                grad.addColorStop(0, '#667eea');
+                grad.addColorStop(1, '#764ba2');
+                ctx.fillStyle = grad;
+                ctx.beginPath();
+                if (ctx.roundRect) {
+                    ctx.roundRect(paddingLeft, y, barWidth, barHeight, 3);
+                } else {
+                    ctx.rect(paddingLeft, y, barWidth, barHeight);
+                }
+                ctx.fill();
+
+                // Feature name label (right-aligned before bar)
+                ctx.fillStyle = '#94a3b8';
+                ctx.font = '12px -apple-system, BlinkMacSystemFont, sans-serif';
+                ctx.textAlign = 'right';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(name, paddingLeft - 8, y + barHeight / 2);
+
+                // Importance value (after bar)
+                ctx.fillStyle = '#e4e4e7';
+                ctx.textAlign = 'left';
+                ctx.fillText((value * 100).toFixed(1) + '%', paddingLeft + barWidth + 6, y + barHeight / 2);
+            });
+        }
+
+        // P3: 進階 tooltip (crosshair hover on equity chart)
+        let _equityTooltipHandler = null; // track handler for resubscription guard
+
+        function setupEquityTooltip(trades) {
+            if (!equityChart || !equitySeries) return;
+
+            // Unsubscribe previous handler to avoid duplicates on re-run
+            if (_equityTooltipHandler) {
+                try { equityChart.unsubscribeCrosshairMove(_equityTooltipHandler); } catch(e) {}
+                _equityTooltipHandler = null;
+            }
+
+            // Build position date set (dates between entry and exit for each trade)
+            const positionDates = new Set();
+            if (trades && trades.length > 0) {
+                trades.forEach(t => {
+                    if (t.entry_date && t.exit_date) {
+                        let d = new Date(t.entry_date);
+                        const end = new Date(t.exit_date);
+                        while (d <= end) {
+                            positionDates.add(d.toISOString().split('T')[0]);
+                            d.setDate(d.getDate() + 1);
+                        }
+                    }
+                });
+            }
+
+            _equityTooltipHandler = param => {
+                const tooltip = document.getElementById('equityTooltip');
+                if (!param || !param.time || !param.point) {
+                    tooltip.style.display = 'none';
+                    return;
+                }
+
+                // Resolve date string
+                const dateStr = typeof param.time === 'string'
+                    ? param.time
+                    : new Date(param.time * 1000).toISOString().split('T')[0];
+
+                // Get series values
+                const equityVal = param.seriesData?.get(equitySeries);
+                const benchVal  = param.seriesData?.get(buyHoldSeries);
+                const value     = equityVal?.value ?? equityVal;
+                const benchmark = benchVal?.value ?? benchVal;
+
+                if (value === undefined || value === null) {
+                    tooltip.style.display = 'none';
+                    return;
+                }
+
+                // Lookup raw equity value for daily PnL
+                const ptIdx = currentEquityCurve.findIndex(p => p.date === dateStr);
+                const rawValue     = ptIdx >= 0 ? currentEquityCurve[ptIdx].value : null;
+                const prevRawValue = ptIdx > 0  ? currentEquityCurve[ptIdx - 1].value : null;
+                const dailyPnl     = rawValue !== null && prevRawValue !== null ? rawValue - prevRawValue : null;
+
+                const inPosition = positionDates.has(dateStr);
+
+                // Format display value
+                const displayValue = equityYAxisMode === 'percent'
+                    ? (typeof value === 'number' ? value.toFixed(2) + '%' : '-')
+                    : (rawValue !== null ? '$' + rawValue.toLocaleString('zh-TW', {minimumFractionDigits: 2, maximumFractionDigits: 2}) : '-');
+
+                // Format benchmark
+                const rawBenchmark = ptIdx >= 0 ? currentEquityCurve[ptIdx].benchmark : null;
+                const benchDisplay = rawBenchmark !== null
+                    ? '$' + rawBenchmark.toLocaleString('zh-TW', {minimumFractionDigits: 2, maximumFractionDigits: 2})
+                    : null;
+
+                // Update tooltip content
+                document.getElementById('equityTooltipDate').textContent  = '📅 ' + dateStr;
+                document.getElementById('equityTooltipValue').textContent = '策略: ' + displayValue;
+                document.getElementById('equityTooltipBenchmark').textContent = benchDisplay ? 'B&H: ' + benchDisplay : '';
+                document.getElementById('equityTooltipPosition').textContent  = inPosition ? '📊 持倉中' : '💵 空倉';
+
+                const pnlEl = document.getElementById('equityTooltipPnl');
+                if (dailyPnl !== null) {
+                    pnlEl.style.color   = dailyPnl >= 0 ? '#22c55e' : '#ef4444';
+                    pnlEl.textContent   = '日損益: ' + (dailyPnl >= 0 ? '+' : '') + '$' + dailyPnl.toFixed(2);
+                } else {
+                    pnlEl.textContent = '';
+                }
+
+                // Position tooltip within the chart container
+                const chartEl = document.getElementById('equityChart');
+                const cw = chartEl.clientWidth;
+                const ch = chartEl.clientHeight;
+                let left = param.point.x + 15;
+                let top  = param.point.y - 80;
+
+                tooltip.style.display = 'block';
+                const tw = tooltip.offsetWidth  || 200;
+                const th = tooltip.offsetHeight || 120;
+
+                if (left + tw > cw - 10) left = param.point.x - tw - 15;
+                if (left < 5) left = 5;
+                if (top < 5)  top  = 5;
+                if (top + th > ch - 5) top = ch - th - 5;
+
+                tooltip.style.left = left + 'px';
+                tooltip.style.top  = top  + 'px';
+            };
+            equityChart.subscribeCrosshairMove(_equityTooltipHandler);
+        }
+
+        function addEquityMarkers(trades) {
+            if (!equitySeries || !trades || trades.length === 0) return;
+            try {
+                const markers = [];
+                trades.forEach(t => {
+                    if (t.entry_date) {
+                        markers.push({
+                            time: t.entry_date,
+                            position: 'belowBar',
+                            color: '#22c55e',
+                            shape: 'arrowUp',
+                            text: `買 $${(t.entry_price || 0).toFixed(0)}`,
+                        });
+                    }
+                    if (t.exit_date) {
+                        markers.push({
+                            time: t.exit_date,
+                            position: 'aboveBar',
+                            color: '#ef4444',
+                            shape: 'arrowDown',
+                            text: `賣 $${(t.exit_price || 0).toFixed(0)}`,
+                        });
+                    }
+                });
+                // Sort by time (required by LightweightCharts)
+                markers.sort((a, b) => a.time.localeCompare(b.time));
+                equitySeries.setMarkers(markers);
+            } catch (e) {
+                console.warn('Equity markers error:', e);
+            }
+        }
+
+        // ================================================================
+        // Phase 2 — Component 4: Trade table CSV export & sort
+        // ================================================================
+
+        function exportTradeCSV() {
+            if (!currentBacktestTrades || currentBacktestTrades.length === 0) {
+                alert('無交易記錄可匯出');
+                return;
+            }
+            const headers = ['進場日期', '出場日期', '進場價', '出場價', '股數', '損益', '損益%'];
+            const rows = currentBacktestTrades.map(t => [
+                t.entry_date || '',
+                t.exit_date || '',
+                (t.entry_price || 0).toFixed(2),
+                (t.exit_price || 0).toFixed(2),
+                t.shares || 0,
+                (t.pnl || 0).toFixed(2),
+                (t.pnl_percent || 0).toFixed(2),
+            ]);
+            const csv = [headers, ...rows].map(r => r.join(',')).join('\n');
+            const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `trades_${currentSymbol}_${new Date().toISOString().split('T')[0]}.csv`;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        function sortTable(field) {
+            if (!currentBacktestTrades || currentBacktestTrades.length === 0) return;
+
+            // Toggle direction
+            if (sortState.field === field) {
+                sortState.dir = sortState.dir === 'asc' ? 'desc' : 'asc';
+            } else {
+                sortState.field = field;
+                sortState.dir = 'asc';
+            }
+
+            // Reset all indicators
+            document.querySelectorAll('[id^="sort_"]').forEach(el => el.textContent = '↕');
+            const indicator = document.getElementById(`sort_${field}`);
+            if (indicator) indicator.textContent = sortState.dir === 'asc' ? '↑' : '↓';
+
+            const sorted = [...currentBacktestTrades].sort((a, b) => {
+                let va = a[field], vb = b[field];
+                if (typeof va === 'string') {
+                    return sortState.dir === 'asc' ? va.localeCompare(vb) : vb.localeCompare(va);
+                }
+                return sortState.dir === 'asc' ? va - vb : vb - va;
+            });
+
+            renderTradeRows(sorted);
+        }
+
+        function renderTradeRows(trades) {
+            const tableBody = document.getElementById('tradeHistoryTable');
+            tableBody.innerHTML = '';
+            trades.forEach(trade => {
+                const row = document.createElement('tr');
+                row.className = 'border-b border-slate-700 hover:bg-slate-800 transition-colors';
+                const pnlClass = (trade.pnl || 0) >= 0 ? 'positive' : 'negative';
+                const pnlSymbol = (trade.pnl || 0) >= 0 ? '+' : '';
+                const pnlPct = trade.pnl_percent != null ? trade.pnl_percent.toFixed(2) : '0.00';
+                const barWidth = Math.min(Math.abs(trade.pnl_percent || 0) * 2, 100);
+                const barColor = (trade.pnl || 0) >= 0 ? '#22c55e33' : '#ef444433';
+                row.innerHTML = `
+                    <td class="px-4 py-3 text-slate-200">${trade.entry_date || '-'}</td>
+                    <td class="px-4 py-3 text-slate-200">${trade.exit_date || '-'}</td>
+                    <td class="px-4 py-3 text-right text-slate-200">$${(trade.entry_price || 0).toFixed(2)}</td>
+                    <td class="px-4 py-3 text-right text-slate-200">$${(trade.exit_price || 0).toFixed(2)}</td>
+                    <td class="px-4 py-3 text-right text-slate-200">${trade.shares || 0}</td>
+                    <td class="px-4 py-3 text-right">
+                        <span class="font-semibold ${pnlClass}">${pnlSymbol}$${(trade.pnl || 0).toFixed(2)}</span>
+                    </td>
+                    <td class="px-4 py-3 text-right relative">
+                        <div class="absolute inset-y-0 right-0 h-full" style="width:${barWidth}%;background:${barColor};z-index:0;"></div>
+                        <span class="relative font-semibold ${pnlClass}" style="z-index:1;">${pnlSymbol}${pnlPct}%</span>
+                    </td>
+                `;
+                tableBody.appendChild(row);
+            });
+        }
+
+        function initEquityChart() {
+            if (!equityChart) {
+                equityChart = LightweightCharts.createChart(document.getElementById('equityChart'), {
+                    layout: {
+                        background: { color: '#0f172a' },
+                        textColor: '#94a3b8',
+                    },
+                    grid: {
+                        vertLines: { color: '#1e293b' },
+                        horzLines: { color: '#1e293b' },
+                    },
+                    rightPriceScale: {
+                        borderColor: '#334155',
+                    },
+                    timeScale: {
+                        borderColor: '#334155',
+                        timeVisible: true,
+                    },
+                    width: document.getElementById('equityChart').clientWidth,
+                    height: 300,
+                });
+
+                equitySeries = equityChart.addLineSeries({
+                    color: '#8b5cf6',
+                    lineWidth: 2,
+                    title: '策略權益',
+                });
+
+                buyHoldSeries = equityChart.addLineSeries({
+                    color: '#64748b',
+                    lineWidth: 2,
+                    lineStyle: 2,
+                    title: 'Buy & Hold',
+                });
+            }
+        }
+
+        async function runBacktest() {
+            const strategy = document.getElementById('backtestStrategy').value;
+            const startDate = document.getElementById('backtestStartDate').value;
+            const endDate = document.getElementById('backtestEndDate').value;
+            const capital = parseFloat(document.getElementById('backtestCapital').value);
+
+            // Validation
+            if (!startDate || !endDate) {
+                alert('請選擇開始和結束日期');
+                return;
+            }
+
+            if (new Date(startDate) >= new Date(endDate)) {
+                alert('開始日期必須早於結束日期');
+                return;
+            }
+
+            if (capital < 1000) {
+                alert('初始資金必須至少為 1000');
+                return;
+            }
+
+            // Show loading
+            const button = document.getElementById('backtestButton');
+            const originalText = button.textContent;
+            button.disabled = true;
+            button.textContent = '⏳ 回測中...';
+            button.classList.add('opacity-50', 'cursor-not-allowed');
+
+            try {
+                // Phase 2: collect dynamic strategy params
+                const strategyParams = getStrategyParams();
+
+                const response = await fetch('/api/backtest', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        symbol: currentSymbol,
+                        strategy: strategy,
+                        start_date: startDate,
+                        end_date: endDate,
+                        initial_capital: capital,
+                        parameters: Object.keys(strategyParams).length > 0 ? strategyParams : undefined,
+                    }),
+                });
+
+                if (!response.ok) {
+                    const error = await response.json().catch(() => ({}));
+                    throw new Error(error.detail || error.error || '回測執行失敗');
+                }
+
+                const result = await response.json();
+                displayBacktestResults(result);
+
+            } catch (error) {
+                console.error('Backtest error:', error);
+                const msg = error.message || '';
+                let friendly = '回測執行失敗，請稍後重試。';
+                if (msg.includes('422') || msg.includes('invalid') || msg.includes('validation')) friendly = '⚠️ 輸入參數無效，請確認股票代碼與日期範圍。';
+                else if (msg.includes('404') || msg.includes('not found')) friendly = '🔍 找不到此股票的資料。';
+                else if (msg.includes('timeout') || msg.includes('timed out')) friendly = '⏳ 回測計算超時，請縮短日期範圍後重試。';
+                else if (msg.includes('500') || msg.includes('internal')) friendly = '🛠️ 伺服器發生錯誤，請稍後重試。';
+                else if (msg) friendly = `⚠️ 回測失敗：${msg}`;
+                showToast(friendly, 'error', 6000);
+            } finally {
+                button.disabled = false;
+                button.textContent = originalText;
+                button.classList.remove('opacity-50', 'cursor-not-allowed');
+            }
+        }
+
+        function displayBacktestResults(result) {
+            // Show results section
+            document.getElementById('backtestResults').classList.remove('hidden');
+
+            // Fix #1/#2: use result.data.performance; API already returns % values
+            const metrics = result.data.performance || {};
+            const benchmark = result.data.benchmark || {};
+            
+            // Total Return (API already in %, no × 100)
+            const totalReturn = metrics.total_return || 0;
+            const totalReturnClass = totalReturn >= 0 ? 'positive' : 'negative';
+            document.getElementById('resultTotalReturn').innerHTML = 
+                `<span class="${totalReturnClass}">${totalReturn.toFixed(2)}%</span>`;
+
+            // Sharpe Ratio
+            document.getElementById('resultSharpe').textContent = 
+                (metrics.sharpe_ratio || 0).toFixed(3);
+
+            // Max Drawdown (API already in %)
+            const maxDrawdown = metrics.max_drawdown || 0;
+            document.getElementById('resultMaxDrawdown').innerHTML = 
+                `<span class="negative">${maxDrawdown.toFixed(2)}%</span>`;
+
+            // Win Rate (API already in %)
+            const winRate = metrics.win_rate || 0;
+            document.getElementById('resultWinRate').textContent = `${winRate.toFixed(1)}%`;
+
+            // Total Trades
+            document.getElementById('resultTotalTrades').textContent = 
+                metrics.total_trades || 0;
+
+            // Phase 2: Final Portfolio Value (6th card)
+            const finalValue = metrics.final_portfolio_value || 0;
+            document.getElementById('resultFinalValue').textContent =
+                finalValue > 0 ? `$${(finalValue).toLocaleString('zh-TW', {maximumFractionDigits: 0})}` : '-';
+
+            // Phase 2: Color-code cards by threshold
+            colorCardByThreshold('cardTotalReturn', totalReturn, { good: 10, bad: 0 });
+            colorCardByThreshold('cardSharpe', metrics.sharpe_ratio || 0, { good: 1.0, bad: 0 });
+            colorCardByThreshold('cardMaxDrawdown', -maxDrawdown, { good: -10, bad: -20 });
+            colorCardByThreshold('cardWinRate', winRate, { good: 55, bad: 40 });
+
+            // Strategy vs Buy & Hold
+            const strategyReturn = metrics.total_return || 0;
+            const buyHoldReturn = benchmark.total_return || 0;  // Fix #4: from benchmark object
+            const strategyClass = strategyReturn >= 0 ? 'positive' : 'negative';
+            const buyHoldClass = buyHoldReturn >= 0 ? 'positive' : 'negative';
+
+            document.getElementById('resultStrategyReturn').innerHTML = 
+                `<span class="${strategyClass}">${strategyReturn.toFixed(2)}%</span>`;
+            document.getElementById('resultBuyHoldReturn').innerHTML = 
+                `<span class="${buyHoldClass}">${buyHoldReturn.toFixed(2)}%</span>`;
+
+            // Phase 2: color-code total return card vs benchmark
+            colorCardByThreshold('cardTotalReturn', totalReturn - buyHoldReturn, { good: 0, bad: -5 });
+
+            // Comparison
+            const outperformance = strategyReturn - buyHoldReturn;
+            const comparisonClass = outperformance >= 0 ? 'positive' : 'negative';
+            const comparisonText = outperformance >= 0 
+                ? `🎉 策略優於 Buy & Hold ${Math.abs(outperformance).toFixed(2)}%`
+                : `📉 策略落後 Buy & Hold ${Math.abs(outperformance).toFixed(2)}%`;
+            document.getElementById('resultComparison').innerHTML = 
+                `<span class="${comparisonClass}">${comparisonText}</span>`;
+
+            // Fix #3: use result.data.equity_curve
+            initEquityChart();
+            displayEquityCurve(result.data.equity_curve);
+
+            // Phase 2: Add buy/sell markers after equity curve is set
+            addEquityMarkers(result.data.trades);
+
+            // P3: 進階 tooltip — setup after equity series is populated
+            setupEquityTooltip(result.data.trades);
+
+            // P3: RF 特徵重要性
+            displayFeatureImportance(result.data.feature_importance || null);
+
+            // Fix #5: use result.data.trades
+            displayTradeHistory(result.data.trades);
+
+            // Display Walk-Forward results if embedded in backtest response
+            if (result.data && result.data.folds && result.data.folds.length > 0) {
+                displayWalkForwardResults(result.data.folds);
+            } else {
+                document.getElementById('wfInlineResults').classList.add('hidden');
+            }
+
+            // Scroll to results
+            setTimeout(() => {
+                document.getElementById('backtestResults').scrollIntoView({ 
+                    behavior: 'smooth',
+                    block: 'start'
+                });
+            }, 100);
+        }
+
+        function displayEquityCurve(equityCurve) {
+            // Fix #3: equityCurve is result.data.equity_curve
+            // Fix #4: benchmark is embedded as point.benchmark (no separate buy_hold_curve)
+            if (!equityCurve || equityCurve.length === 0) return;
+            currentEquityCurve = equityCurve; // Phase 2: store for time zoom
+
+            // P3: Y軸切換 — percent mode converts to % return vs initial
+            const initialValue = equityCurve[0].value || 1;
+            const toDisplay = v => equityYAxisMode === 'percent'
+                ? parseFloat(((v - initialValue) / initialValue * 100).toFixed(4))
+                : v;
+
+            const equityData = equityCurve.map(point => ({
+                time: point.date,
+                value: toDisplay(point.value),
+            }));
+
+            equitySeries.setData(equityData);
+            equitySeries.applyOptions({
+                title: equityYAxisMode === 'percent' ? '策略%' : '策略權益',
+            });
+
+            // Extract benchmark values from embedded field
+            const hasBenchmark = equityCurve.some(p => p.benchmark != null);
+            if (hasBenchmark) {
+                const initialBenchmark = equityCurve.find(p => p.benchmark != null)?.benchmark || 1;
+                const toBenchDisplay = v => equityYAxisMode === 'percent'
+                    ? parseFloat(((v - initialBenchmark) / initialBenchmark * 100).toFixed(4))
+                    : v;
+                const buyHoldData = equityCurve
+                    .filter(p => p.benchmark != null)
+                    .map(point => ({
+                        time: point.date,
+                        value: toBenchDisplay(point.benchmark),
+                    }));
+                buyHoldSeries.setData(buyHoldData);
+                buyHoldSeries.applyOptions({
+                    title: equityYAxisMode === 'percent' ? 'B&H %' : 'Buy & Hold',
+                });
+            }
+
+            equityChart.timeScale().fitContent();
+
+            // Responsive resize
+            if (!window.equityChartResizeAdded) {
+                window.addEventListener('resize', () => {
+                    if (equityChart) {
+                        equityChart.applyOptions({ 
+                            width: document.getElementById('equityChart').clientWidth 
+                        });
+                    }
+                });
+                window.equityChartResizeAdded = true;
+            }
+        }
+
+        function displayTradeHistory(trades) {
+            const tableBody = document.getElementById('tradeHistoryTable');
+            const tfoot = document.getElementById('tradeTableFoot');
+            tableBody.innerHTML = '';
+            if (tfoot) tfoot.innerHTML = '';
+
+            // Phase 2: store for CSV export & sort
+            currentBacktestTrades = trades || [];
+            sortState = { field: null, dir: 'asc' };
+            document.querySelectorAll('[id^="sort_"]').forEach(el => el.textContent = '↕');
+
+            // Phase 2: Update trade count
+            document.getElementById('tradeCount').textContent = currentBacktestTrades.length;
+
+            if (!trades || trades.length === 0) {
+                tableBody.innerHTML = `
+                    <tr>
+                        <td colspan="7" class="px-4 py-6 text-center text-slate-400">
+                            無交易記錄
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+
+            // Phase 2: Render with PnL bars (via renderTradeRows)
+            renderTradeRows(trades);
+
+            // Phase 2: Summary footer row (wins/losses/total PnL)
+            const wins = trades.filter(t => (t.pnl || 0) > 0).length;
+            const losses = trades.filter(t => (t.pnl || 0) <= 0).length;
+            const totalPnl = trades.reduce((sum, t) => sum + (t.pnl || 0), 0);
+            const pnlClass = totalPnl >= 0 ? 'positive' : 'negative';
+            const pnlSign = totalPnl >= 0 ? '+' : '';
+            if (tfoot) {
+                tfoot.innerHTML = `
+                    <tr class="text-xs text-slate-400 font-semibold">
+                        <td colspan="4" class="px-4 py-2">
+                            ✅ 盈利 ${wins} 筆 &nbsp;|&nbsp; ❌ 虧損 ${losses} 筆
+                        </td>
+                        <td class="px-4 py-2 text-right" colspan="2">總損益</td>
+                        <td class="px-4 py-2 text-right">
+                            <span class="${pnlClass}">${pnlSign}$${totalPnl.toFixed(2)}</span>
+                        </td>
+                    </tr>
+                `;
+            }
+        }
+
+        // Set default dates on load
+        window.addEventListener('load', () => {
+            const today = new Date();
+            const oneYearAgo = new Date(today);
+            oneYearAgo.setFullYear(today.getFullYear() - 1);
+
+            document.getElementById('backtestEndDate').valueAsDate = today;
+            document.getElementById('backtestStartDate').valueAsDate = oneYearAgo;
+
+            // Walk-Forward 深度分析：預設 2 年範圍
+            document.getElementById('wfEndDate').valueAsDate = today;
+            const twoYearsAgo = new Date(today);
+            twoYearsAgo.setFullYear(today.getFullYear() - 2);
+            document.getElementById('wfStartDate').valueAsDate = twoYearsAgo;
+
+            // 載入模擬交易帳戶列表
+            loadSimAccounts();
+
+            // Phase 2: load strategy params for default strategy
+            loadStrategyParams(document.getElementById('backtestStrategy').value);
+        });
+
+        // =================================================================
+        // 模擬交易功能
+        // =================================================================
+
+        let currentSimAccountId = null;
+
+        function showSimTab(tabName) {
+            // 隱藏所有 tab
+            document.querySelectorAll('.sim-tab').forEach(tab => tab.classList.add('hidden'));
+            document.querySelectorAll('[id^="tab"]').forEach(btn => btn.classList.remove('active'));
+
+            // 顯示選中的 tab
+            document.getElementById('simTab' + tabName.charAt(0).toUpperCase() + tabName.slice(1)).classList.remove('hidden');
+            document.getElementById('tab' + tabName.charAt(0).toUpperCase() + tabName.slice(1)).classList.add('active');
+
+            // 載入對應資料
+            if (tabName === 'accounts') {
+                loadSimAccounts();
+            } else if (tabName === 'trade') {
+                populateAccountSelects();
+            } else if (tabName === 'history') {
+                populateAccountSelects();
+            }
+        }
+
+        async function loadSimAccounts() {
+            try {
+                const response = await fetch('/api/sim/accounts');
+                if (!response.ok) throw new Error('載入帳戶失敗');
+                
+                const data = await response.json();
+                displaySimAccounts(data.accounts);
+                
+                // 同時更新下拉選單
+                populateAccountSelects();
+            } catch (error) {
+                console.error('Error loading accounts:', error);
+                document.getElementById('simAccountsList').innerHTML = 
+                    '<p class="text-red-400">載入失敗：' + error.message + '</p>';
+            }
+        }
+
+        function displaySimAccounts(accounts) {
+            const container = document.getElementById('simAccountsList');
+            
+            if (!accounts || accounts.length === 0) {
+                container.innerHTML = '<p class="text-slate-400">尚無帳戶，請先建立帳戶</p>';
+                return;
+            }
+
+            container.innerHTML = accounts.map(acc => `
+                <div class="stat-card">
+                    <div class="flex justify-between items-start mb-2">
+                        <div>
+                            <h4 class="text-lg font-bold">${acc.name}</h4>
+                            <p class="text-sm text-slate-400">${acc.created_at}</p>
+                        </div>
+                        <button onclick="deleteSimAccount(${acc.id}, '${acc.name}')" class="text-red-400 hover:text-red-300 text-sm">
+                            🗑️ 刪除
+                        </button>
+                    </div>
+                    <div class="grid grid-cols-2 gap-4 mt-4">
+                        <div>
+                            <div class="text-xs text-slate-400">初始資金</div>
+                            <div class="text-lg font-semibold">\$${acc.initial_cash.toLocaleString()}</div>
+                        </div>
+                        <div>
+                            <div class="text-xs text-slate-400">現金</div>
+                            <div class="text-lg font-semibold">\$${acc.cash.toLocaleString()}</div>
+                        </div>
+                    </div>
+                    <button onclick="viewAccountDetails(${acc.id})" class="mt-3 w-full btn-secondary px-4 py-2 rounded-lg text-sm">
+                        查看詳情
+                    </button>
+                </div>
+            `).join('');
+        }
+
+        async function createSimAccount() {
+            const name = document.getElementById('simAccountName').value.trim();
+            const initialCash = parseFloat(document.getElementById('simInitialCash').value);
+
+            if (!name) {
+                alert('請輸入帳戶名稱');
+                return;
+            }
+
+            if (initialCash < 1000) {
+                alert('初始資金至少需要 $1,000');
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/sim/accounts', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        name: name,
+                        initial_cash: initialCash
+                    })
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.detail || '建立失敗');
+                }
+
+                const result = await response.json();
+                alert('✅ 帳戶建立成功：' + result.name);
+
+                // 清空表單
+                document.getElementById('simAccountName').value = '';
+                document.getElementById('simInitialCash').value = '100000';
+
+                // 切換到帳戶總覽
+                showSimTab('accounts');
+            } catch (error) {
+                console.error('Error creating account:', error);
+                alert('建立失敗：' + error.message);
+            }
+        }
+
+        async function deleteSimAccount(id, name) {
+            if (!confirm(`確定要刪除帳戶「${name}」嗎？此操作無法復原。`)) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/sim/accounts/${id}`, {
+                    method: 'DELETE'
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.detail || '刪除失敗');
+                }
+
+                alert('✅ 帳戶已刪除');
+                loadSimAccounts();
+            } catch (error) {
+                console.error('Error deleting account:', error);
+                alert('刪除失敗：' + error.message);
+            }
+        }
+
+        function viewAccountDetails(id) {
+            currentSimAccountId = id;
+            showSimTab('trade');
+            document.getElementById('simTradeAccountSelect').value = id;
+            loadSimAccountDetails();
+        }
+
+        async function populateAccountSelects() {
+            try {
+                const response = await fetch('/api/sim/accounts');
+                if (!response.ok) throw new Error('載入帳戶失敗');
+                
+                const data = await response.json();
+                const options = '<option value="">請選擇帳戶</option>' + 
+                    data.accounts.map(acc => `<option value="${acc.id}">${acc.name}</option>`).join('');
+                
+                document.getElementById('simTradeAccountSelect').innerHTML = options;
+                document.getElementById('simHistoryAccountSelect').innerHTML = options;
+            } catch (error) {
+                console.error('Error populating selects:', error);
+            }
+        }
+
+        async function loadSimAccountDetails() {
+            const accountId = document.getElementById('simTradeAccountSelect').value;
+            
+            if (!accountId) {
+                document.getElementById('simAccountDetails').classList.add('hidden');
+                return;
+            }
+
+            currentSimAccountId = accountId;
+
+            try {
+                const response = await fetch(`/api/sim/accounts/${accountId}`);
+                if (!response.ok) throw new Error('載入帳戶詳情失敗');
+                
+                const account = await response.json();
+                displayAccountDetails(account);
+            } catch (error) {
+                console.error('Error loading account details:', error);
+                alert('載入失敗：' + error.message);
+            }
+        }
+
+        function displayAccountDetails(account) {
+            document.getElementById('simAccountDetails').classList.remove('hidden');
+
+            // 更新統計資料
+            document.getElementById('simDetailCash').textContent = '$' + account.cash.toLocaleString();
+            document.getElementById('simDetailMarketValue').textContent = '$' + account.total_market_value.toLocaleString();
+            document.getElementById('simDetailNetValue').textContent = '$' + account.net_value.toLocaleString();
+            
+            const pnlClass = account.total_pnl >= 0 ? 'positive' : 'negative';
+            const pnlSymbol = account.total_pnl >= 0 ? '+' : '';
+            document.getElementById('simDetailPnL').innerHTML = 
+                `<span class="${pnlClass}">${pnlSymbol}\$${account.total_pnl.toLocaleString()} (${account.total_pnl_percent.toFixed(2)}%)</span>`;
+
+            // 更新持倉列表
+            const tbody = document.getElementById('simPositionsTableBody');
+            
+            if (!account.positions || account.positions.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" class="px-4 py-6 text-center text-slate-400">目前無持倉</td></tr>';
+            } else {
+                tbody.innerHTML = account.positions.map(pos => {
+                    const pnlClass = pos.pnl >= 0 ? 'positive' : 'negative';
+                    const pnlSymbol = pos.pnl >= 0 ? '+' : '';
+                    return `
+                        <tr class="border-b border-slate-700 hover:bg-slate-800">
+                            <td class="px-4 py-3 text-slate-200 font-semibold">${pos.symbol}</td>
+                            <td class="px-4 py-3 text-right text-slate-200">${pos.quantity}</td>
+                            <td class="px-4 py-3 text-right text-slate-200">\$${pos.avg_cost.toFixed(2)}</td>
+                            <td class="px-4 py-3 text-right text-slate-200">\$${pos.current_price.toFixed(2)}</td>
+                            <td class="px-4 py-3 text-right text-slate-200">\$${pos.market_value.toLocaleString()}</td>
+                            <td class="px-4 py-3 text-right">
+                                <span class="${pnlClass} font-semibold">
+                                    ${pnlSymbol}\$${Math.abs(pos.pnl).toFixed(2)} (${pos.pnl_percent.toFixed(2)}%)
+                                </span>
+                            </td>
+                        </tr>
+                    `;
+                }).join('');
+            }
+        }
+
+        async function executeSimTrade() {
+            const accountId = currentSimAccountId || document.getElementById('simTradeAccountSelect').value;
+            const symbol = document.getElementById('simTradeSymbol').value.trim().toUpperCase();
+            const action = document.getElementById('simTradeAction').value;
+            const quantity = parseInt(document.getElementById('simTradeQuantity').value);
+
+            if (!accountId) {
+                alert('請選擇帳戶');
+                return;
+            }
+
+            if (!symbol) {
+                alert('請輸入股票代碼');
+                return;
+            }
+
+            if (!quantity || quantity <= 0) {
+                alert('請輸入有效數量');
+                return;
+            }
+
+            if (!confirm(`確定要${action === 'buy' ? '買入' : '賣出'} ${quantity} 股 ${symbol} 嗎？`)) {
+                return;
+            }
+
+            try {
+                showLoading(true);
+
+                const response = await fetch(`/api/sim/accounts/${accountId}/trade`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        symbol: symbol,
+                        action: action,
+                        quantity: quantity
+                    })
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.detail || '交易失敗');
+                }
+
+                const result = await response.json();
+                
+                const actionText = result.action === 'BUY' ? '買入' : '賣出';
+                let message = `✅ ${actionText}成功\n\n`;
+                message += `股票：${result.symbol}\n`;
+                message += `數量：${result.quantity}\n`;
+                message += `價格：\$${result.price.toFixed(2)}\n`;
+                message += `手續費：\$${result.commission.toFixed(2)}\n`;
+                if (result.tax) {
+                    message += `證交稅：\$${result.tax.toFixed(2)}\n`;
+                }
+                message += `\n剩餘現金：\$${result.remaining_cash.toFixed(2)}`;
+
+                alert(message);
+
+                // 重新載入帳戶詳情
+                loadSimAccountDetails();
+
+                // 清空交易表單
+                document.getElementById('simTradeSymbol').value = '';
+                document.getElementById('simTradeQuantity').value = '10';
+            } catch (error) {
+                console.error('Error executing trade:', error);
+                alert('交易失敗：' + error.message);
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        async function loadSimHistory() {
+            const accountId = document.getElementById('simHistoryAccountSelect').value;
+            
+            if (!accountId) {
+                document.getElementById('simHistoryList').innerHTML = 
+                    '<p class="text-slate-400">請選擇帳戶以查看交易歷史</p>';
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/sim/accounts/${accountId}/history`);
+                if (!response.ok) throw new Error('載入交易歷史失敗');
+                
+                const data = await response.json();
+                displaySimHistory(data.transactions);
+            } catch (error) {
+                console.error('Error loading history:', error);
+                document.getElementById('simHistoryList').innerHTML = 
+                    '<p class="text-red-400">載入失敗：' + error.message + '</p>';
+            }
+        }
+
+        // ================================================================
+        // Walk-Forward Visualization Functions
+        // ================================================================
+
+        /**
+         * 顯示嵌入在回測結果中的 Walk-Forward fold 數據
+         * @param {Array} folds - 來自 result.data.folds 的折數組
+         */
+        function displayWalkForwardResults(folds) {
+            const container = document.getElementById('wfInlineResults');
+            if (!folds || folds.length === 0) {
+                container.classList.add('hidden');
+                return;
+            }
+            container.classList.remove('hidden');
+
+            // 計算摘要統計
+            const returns = folds.map(f => f.metrics ? f.metrics.return : 0);
+            const avgReturn = returns.reduce((a, b) => a + b, 0) / returns.length;
+            const variance = returns.map(r => Math.pow(r - avgReturn, 2)).reduce((a, b) => a + b, 0) / returns.length;
+            const returnStd = Math.sqrt(variance);
+            const bestReturn = Math.max(...returns);
+            const worstReturn = Math.min(...returns);
+
+            // 更新摘要卡片
+            document.getElementById('wfTotalFolds').textContent = folds.length;
+
+            const avgClass = avgReturn >= 0 ? 'positive' : 'negative';
+            const avgSign = avgReturn >= 0 ? '+' : '';
+            document.getElementById('wfAvgReturn').innerHTML =
+                `<span class="${avgClass}">${avgSign}${avgReturn.toFixed(2)}%</span>`;
+            document.getElementById('wfReturnStd').textContent = `±${returnStd.toFixed(2)}%`;
+
+            const bestClass = bestReturn >= 0 ? 'positive' : 'negative';
+            const worstClass = worstReturn >= 0 ? 'positive' : 'negative';
+            const bestSign = bestReturn >= 0 ? '+' : '';
+            document.getElementById('wfBestWorst').innerHTML =
+                `<span class="${bestClass}">${bestSign}${bestReturn.toFixed(1)}%</span>` +
+                ` / <span class="${worstClass}">${worstReturn.toFixed(1)}%</span>`;
+
+            // 繪製長條圖
+            drawWFBarChart('wfBarChart', folds.map(f => ({
+                label: `F${f.fold}`,
+                value: f.metrics ? f.metrics.return : 0
+            })));
+
+            // 填充折數表格
+            const tbody = document.getElementById('wfFoldsTable');
+            tbody.innerHTML = '';
+            folds.forEach(fold => {
+                const m = fold.metrics || {};
+                const r = m.return || 0;
+                const sharpe = m.sharpe || 0;
+                const maxDD = m.max_drawdown || 0;
+                const winRate = m.win_rate || 0;
+                const rClass = r >= 0 ? 'positive' : 'negative';
+                const rSign = r >= 0 ? '+' : '';
+
+                const row = document.createElement('tr');
+                row.className = 'border-b border-slate-700 hover:bg-slate-800 transition-colors';
+                row.innerHTML = `
+                    <td class="px-3 py-3 text-center font-bold text-purple-400">${fold.fold}</td>
+                    <td class="px-3 py-3 text-xs text-slate-300">
+                        ${fold.train_period.start}<br>
+                        <span class="text-slate-500">→</span> ${fold.train_period.end}
+                    </td>
+                    <td class="px-3 py-3 text-xs text-slate-300">
+                        ${fold.test_period.start}<br>
+                        <span class="text-slate-500">→</span> ${fold.test_period.end}
+                    </td>
+                    <td class="px-3 py-3 text-right">
+                        <span class="font-semibold ${rClass}">${rSign}${r.toFixed(2)}%</span>
+                    </td>
+                    <td class="px-3 py-3 text-right text-slate-200">${sharpe.toFixed(3)}</td>
+                    <td class="px-3 py-3 text-right text-red-400">${maxDD.toFixed(2)}%</td>
+                    <td class="px-3 py-3 text-right text-slate-200">${winRate.toFixed(1)}%</td>
+                `;
+                tbody.appendChild(row);
+            });
+        }
+
+        /**
+         * 繪製 Walk-Forward 報酬率長條圖 (Canvas)
+         * @param {string} canvasId - canvas element id
+         * @param {Array<{label:string, value:number}>} data - bar data
+         */
+        function drawWFBarChart(canvasId, data) {
+            const canvas = document.getElementById(canvasId);
+            if (!canvas || !data || data.length === 0) return;
+
+            const dpr = window.devicePixelRatio || 1;
+            const cssWidth = canvas.offsetWidth || canvas.parentElement.offsetWidth || 600;
+            const cssHeight = parseInt(canvas.style.height) || 180;
+
+            canvas.width = Math.floor(cssWidth * dpr);
+            canvas.height = Math.floor(cssHeight * dpr);
+            canvas.style.width = cssWidth + 'px';
+            canvas.style.height = cssHeight + 'px';
+
+            const ctx = canvas.getContext('2d');
+            ctx.scale(dpr, dpr);
+
+            const W = cssWidth;
+            const H = cssHeight;
+
+            // Background
+            ctx.fillStyle = '#1e293b';
+            ctx.fillRect(0, 0, W, H);
+
+            const values = data.map(d => d.value);
+            const maxVal = Math.max(...values, 0.5);
+            const minVal = Math.min(...values, -0.5);
+            const range = (maxVal - minVal) || 1;
+
+            const pad = { left: 50, right: 15, top: 20, bottom: 32 };
+            const cW = W - pad.left - pad.right;
+            const cH = H - pad.top - pad.bottom;
+
+            const zeroY = pad.top + cH * (maxVal / range);
+
+            // Grid lines
+            ctx.strokeStyle = '#334155';
+            ctx.lineWidth = 0.5;
+            for (let i = 0; i <= 4; i++) {
+                const gy = pad.top + (cH / 4) * i;
+                ctx.beginPath();
+                ctx.moveTo(pad.left, gy);
+                ctx.lineTo(W - pad.right, gy);
+                ctx.stroke();
+            }
+
+            // Zero line
+            ctx.strokeStyle = '#64748b';
+            ctx.lineWidth = 1;
+            ctx.setLineDash([4, 3]);
+            ctx.beginPath();
+            ctx.moveTo(pad.left, zeroY);
+            ctx.lineTo(W - pad.right, zeroY);
+            ctx.stroke();
+            ctx.setLineDash([]);
+
+            // Bars
+            const step = cW / data.length;
+            const barW = Math.max(4, step * 0.65);
+
+            data.forEach((d, i) => {
+                const x = pad.left + i * step + (step - barW) / 2;
+                const barH = Math.abs(d.value) / range * cH;
+                const y = d.value >= 0 ? zeroY - barH : zeroY;
+
+                ctx.fillStyle = d.value >= 0 ? '#22c55e' : '#ef4444';
+                ctx.fillRect(x, y, barW, Math.max(1, barH));
+
+                // Value label inside bar if tall enough
+                if (barH > 14) {
+                    ctx.fillStyle = '#fff';
+                    ctx.font = `${Math.max(7, Math.min(9, step * 0.38))}px sans-serif`;
+                    ctx.textAlign = 'center';
+                    const ly = d.value >= 0 ? y + Math.min(barH - 3, 11) : y + barH - 3;
+                    ctx.fillText(`${d.value.toFixed(1)}%`, x + barW / 2, ly);
+                }
+
+                // X-axis label
+                ctx.fillStyle = '#94a3b8';
+                ctx.font = `${Math.max(7, Math.min(10, step * 0.42))}px sans-serif`;
+                ctx.textAlign = 'center';
+                ctx.fillText(d.label, x + barW / 2, H - pad.bottom + 13);
+            });
+
+            // Y-axis labels
+            ctx.fillStyle = '#94a3b8';
+            ctx.font = '9px sans-serif';
+            ctx.textAlign = 'right';
+            ctx.fillText(`${maxVal.toFixed(1)}%`, pad.left - 4, pad.top + 5);
+            ctx.fillText('0%', pad.left - 4, zeroY + 3);
+            if (minVal < 0) {
+                ctx.fillText(`${minVal.toFixed(1)}%`, pad.left - 4, pad.top + cH + 3);
+            }
+        }
+
+        /**
+         * 執行獨立 Walk-Forward 分析 (呼叫 /api/backtest/walk-forward)
+         */
+        async function runWalkForward() {
+            const strategy   = document.getElementById('wfStrategy').value;
+            const startDate  = document.getElementById('wfStartDate').value;
+            const endDate    = document.getElementById('wfEndDate').value;
+            const trainMonths = parseInt(document.getElementById('wfTrainMonths').value);
+            const testMonths  = parseInt(document.getElementById('wfTestMonths').value);
+            const capital     = parseFloat(document.getElementById('wfCapital').value);
+
+            if (!startDate || !endDate) {
+                alert('請選擇日期範圍');
+                return;
+            }
+            if (new Date(startDate) >= new Date(endDate)) {
+                alert('起始日期必須早於結束日期');
+                return;
+            }
+            if (trainMonths < 1 || testMonths < 1) {
+                alert('訓練和測試窗口必須至少 1 個月');
+                return;
+            }
+
+            const button = document.getElementById('wfButton');
+            const originalText = button.textContent;
+            button.disabled = true;
+            button.textContent = '⏳ 分析中…（RF 策略需要數分鐘）';
+            button.classList.add('opacity-50', 'cursor-not-allowed');
+
+            try {
+                const response = await fetch('/api/backtest/walk-forward', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        symbol:        currentSymbol,
+                        strategy:      strategy,
+                        total_start:   startDate,
+                        total_end:     endDate,
+                        train_months:  trainMonths,
+                        test_months:   testMonths,
+                        initial_capital: capital
+                    })
+                });
+
+                if (!response.ok) {
+                    const err = await response.json();
+                    throw new Error(err.detail || 'Walk-Forward 分析失敗');
+                }
+
+                const result = await response.json();
+                displayWalkForwardAnalysis(result);
+
+            } catch (error) {
+                console.error('Walk-Forward error:', error);
+                alert(`分析失敗：${error.message}`);
+            } finally {
+                button.disabled = false;
+                button.textContent = originalText;
+                button.classList.remove('opacity-50', 'cursor-not-allowed');
+            }
+        }
+
+        /**
+         * 顯示獨立 Walk-Forward 分析結果
+         * @param {Object} result - /api/backtest/walk-forward 回傳值
+         */
+        function displayWalkForwardAnalysis(result) {
+            const container = document.getElementById('wfAnalysisResults');
+            container.classList.remove('hidden');
+
+            const summary = result.summary  || {};
+            const windows = result.windows  || [];
+            const cfg     = result.config   || {};
+
+            // 摘要卡片
+            const totalW = summary.total_windows || windows.length;
+            const successW = summary.successful_windows || windows.filter(w => w.status === 'success').length;
+            document.getElementById('wfaTotalWindows').textContent = totalW;
+
+            const avgReturn = summary.average_return || 0;
+            const avgClass  = avgReturn >= 0 ? 'positive' : 'negative';
+            const avgSign   = avgReturn >= 0 ? '+' : '';
+            document.getElementById('wfaAvgReturn').innerHTML =
+                `<span class="${avgClass}">${avgSign}${avgReturn.toFixed(2)}%</span>`;
+            document.getElementById('wfaReturnStd').textContent =
+                `±${(summary.return_std || 0).toFixed(2)}%`;
+
+            const best  = summary.best_return  || 0;
+            const worst = summary.worst_return || 0;
+            const bc = best  >= 0 ? 'positive' : 'negative';
+            const wc = worst >= 0 ? 'positive' : 'negative';
+            const bs = best  >= 0 ? '+' : '';
+            document.getElementById('wfaBestWorst').innerHTML =
+                `<span class="${bc}">${bs}${best.toFixed(1)}%</span>` +
+                ` / <span class="${wc}">${worst.toFixed(1)}%</span>`;
+
+            document.getElementById('wfaAvgDrawdown').innerHTML =
+                `<span class="negative">${(summary.average_max_drawdown || 0).toFixed(2)}%</span>`;
+
+            const successRate = totalW > 0 ? (successW / totalW * 100).toFixed(0) : 0;
+            document.getElementById('wfaSuccessRate').textContent = `${successRate}%`;
+            document.getElementById('wfaTotalTrades').textContent = summary.total_trades || 0;
+
+            // 長條圖
+            drawWFBarChart('wfaBarChart', windows.map(w => ({
+                label: `W${w.window_id}`,
+                value: w.total_return || 0
+            })));
+
+            // 窗口表格
+            const tbody = document.getElementById('wfaWindowsTable');
+            tbody.innerHTML = '';
+            windows.forEach(w => {
+                const r    = w.total_return || 0;
+                const rCls = r >= 0 ? 'positive' : 'negative';
+                const rSgn = r >= 0 ? '+' : '';
+                const statusBadge = w.status === 'success'
+                    ? '<span class="text-green-400">✅</span>'
+                    : '<span class="text-red-400">❌</span>';
+
+                const row = document.createElement('tr');
+                row.className = 'border-b border-slate-700 hover:bg-slate-800 transition-colors';
+                row.innerHTML = `
+                    <td class="px-3 py-3 text-center font-bold text-purple-400">${w.window_id}</td>
+                    <td class="px-3 py-3 text-xs text-slate-300">${w.train_period || '-'}</td>
+                    <td class="px-3 py-3 text-xs text-slate-300">${w.test_period  || '-'}</td>
+                    <td class="px-3 py-3 text-right">
+                        <span class="font-semibold ${rCls}">${rSgn}${r.toFixed(2)}%</span>
+                    </td>
+                    <td class="px-3 py-3 text-right text-red-400">${(w.max_drawdown || 0).toFixed(2)}%</td>
+                    <td class="px-3 py-3 text-right text-slate-200">${w.total_trades || 0}</td>
+                    <td class="px-3 py-3 text-center">${statusBadge}</td>
+                `;
+                tbody.appendChild(row);
+            });
+
+            // Scroll to results
+            setTimeout(() => {
+                container.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }, 100);
+        }
+
+        // ================================================================
+
+        function displaySimHistory(transactions) {
+            const container = document.getElementById('simHistoryList');
+            
+            if (!transactions || transactions.length === 0) {
+                container.innerHTML = '<p class="text-slate-400">尚無交易記錄</p>';
+                return;
+            }
+
+            container.innerHTML = `
+                <table class="w-full text-sm">
+                    <thead>
+                        <tr class="border-b border-slate-700">
+                            <th class="px-4 py-3 text-left text-slate-300">時間</th>
+                            <th class="px-4 py-3 text-left text-slate-300">股票</th>
+                            <th class="px-4 py-3 text-left text-slate-300">動作</th>
+                            <th class="px-4 py-3 text-right text-slate-300">價格</th>
+                            <th class="px-4 py-3 text-right text-slate-300">數量</th>
+                            <th class="px-4 py-3 text-right text-slate-300">總額</th>
+                            <th class="px-4 py-3 text-right text-slate-300">手續費</th>
+                            <th class="px-4 py-3 text-right text-slate-300">證交稅</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${transactions.map(tx => {
+                            const actionClass = tx.action === 'BUY' ? 'positive' : 'negative';
+                            const actionText = tx.action === 'BUY' ? '買入 📈' : '賣出 📉';
+                            return `
+                                <tr class="border-b border-slate-700 hover:bg-slate-800">
+                                    <td class="px-4 py-3 text-slate-200">${tx.timestamp}</td>
+                                    <td class="px-4 py-3 text-slate-200 font-semibold">${tx.symbol}</td>
+                                    <td class="px-4 py-3"><span class="${actionClass} font-semibold">${actionText}</span></td>
+                                    <td class="px-4 py-3 text-right text-slate-200">\$${tx.price.toFixed(2)}</td>
+                                    <td class="px-4 py-3 text-right text-slate-200">${tx.quantity}</td>
+                                    <td class="px-4 py-3 text-right text-slate-200">\$${tx.total_value.toLocaleString()}</td>
+                                    <td class="px-4 py-3 text-right text-slate-200">\$${tx.commission.toFixed(2)}</td>
+                                    <td class="px-4 py-3 text-right text-slate-200">\$${tx.tax.toFixed(2)}</td>
+                                </tr>
+                            `;
+                        }).join('')}
+                    </tbody>
+                </table>
+            `;
+        }
+
+        // ================================================================
+        // Phase 9 — Help Modal & Toast Notifications
+        // ================================================================
+
+        function toggleHelp() {
+            const modal = document.getElementById('helpModal');
+            modal.classList.toggle('hidden');
+            if (!modal.classList.contains('hidden')) {
+                document.body.style.overflow = 'hidden';
+            } else {
+                document.body.style.overflow = '';
+            }
+        }
+
+        function closeHelpOnBg(event) {
+            if (event.target.id === 'helpModal') {
+                toggleHelp();
+            }
+        }
+
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                const modal = document.getElementById('helpModal');
+                if (!modal.classList.contains('hidden')) {
+                    toggleHelp();
+                }
+            }
+        });
+
+        // Toast notification system
+        function showToast(message, type = 'info', duration = 3500) {
+            const container = document.getElementById('toastContainer');
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            const icons = { success: '✅', error: '❌', info: 'ℹ️', warn: '⚠️' };
+            toast.innerHTML = `<span>${icons[type] || 'ℹ️'}</span><span>${message}</span>`;
+            container.appendChild(toast);
+            // Trigger animation
+            requestAnimationFrame(() => {
+                requestAnimationFrame(() => toast.classList.add('show'));
+            });
+            setTimeout(() => {
+                toast.classList.remove('show');
+                setTimeout(() => toast.remove(), 350);
+            }, duration);
+        }
+
+        // Expose globally for use in existing functions
+        window.showToast = showToast;
+    </script>
+
+    <!-- Toast Container -->
+    <div id="toastContainer"></div>
+
+    <!-- Help Modal (Phase 9) -->
+    <div id="helpModal" class="hidden fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-50 p-4" onclick="closeHelpOnBg(event)" role="dialog" aria-modal="true" aria-labelledby="helpModalTitle">
+        <div id="helpModalContent" class="bg-slate-900 border border-slate-600 rounded-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto p-6 shadow-2xl">
+            <div class="flex items-center justify-between mb-6">
+                <h2 id="helpModalTitle" class="text-2xl font-bold text-white">📖 使用說明</h2>
+                <button onclick="toggleHelp()" class="text-slate-400 hover:text-white text-2xl leading-none" aria-label="關閉">&times;</button>
+            </div>
+
+            <div class="space-y-1">
+
+                <div class="help-section-title">🔍 股票搜尋</div>
+                <div class="help-section-body">
+                    在頂部搜尋框輸入股票代碼後按「搜尋」：<br>
+                    • 台股格式：<code class="text-purple-400">2330.TW</code>（台積電）、<code class="text-purple-400">0050.TW</code>（元大 50）<br>
+                    • 美股格式：<code class="text-purple-400">AAPL</code>、<code class="text-purple-400">NVDA</code>、<code class="text-purple-400">TSLA</code><br>
+                    • 也支援搜尋股票名稱（輸入後選擇下拉建議）
+                </div>
+
+                <div class="help-section-title">📈 K 線圖 &amp; 指標</div>
+                <div class="help-section-body">
+                    主圖顯示 K 線 + 成交量，附有三條移動平均線（MA5/MA20/MA60）。<br>
+                    • 下方 <strong>RSI 圖</strong>：70 以上為超買（紅線），30 以下為超賣（綠線）<br>
+                    • <strong>MACD 圖</strong>：柱狀體由負轉正為潛在買入訊號<br>
+                    • 右上角按鈕可切換 1M / 3M / 6M / 1Y / 2Y 時間範圍
+                </div>
+
+                <div class="help-section-title">🤖 AI 預測訊號</div>
+                <div class="help-section-body">
+                    整合隨機森林（RF）與 HMM 市場機制模型，給出 BUY / SELL / HOLD 訊號。<br>
+                    • <strong>BUY</strong>（綠色）：模型預測未來 5 日上漲<br>
+                    • <strong>SELL</strong>（紅色）：模型預測未來 5 日下跌<br>
+                    • <strong>HOLD</strong>（藍色）：訊號不明確，建議觀望<br>
+                    • 信心度 ≥ 60% 才具參考價值。⚠️ 僅供學習，不構成投資建議
+                </div>
+
+                <div class="help-section-title">📊 回測系統</div>
+                <div class="help-section-body">
+                    在歷史數據上模擬策略，評估獲利能力：<br>
+                    1. 選擇策略（MA Crossover / 隨機森林 / HMM 過濾）<br>
+                    2. 設定起訖日期與初始資金（預設 100 萬台幣）<br>
+                    3. 按「執行回測」，等待結果（首次執行約 30–90 秒）<br>
+                    • <strong>Sharpe Ratio</strong>：越高越好（>1 為佳）<br>
+                    • <strong>最大回撤</strong>：越小越好，代表風險控制<br>
+                    • <strong>勝率</strong>：盈利交易佔總交易次數的比例
+                </div>
+
+                <div class="help-section-title">💼 模擬交易</div>
+                <div class="help-section-body">
+                    用虛擬資金練習買賣，不涉及真實金錢：<br>
+                    1. 切換至「建立帳戶」標籤，輸入帳戶名稱與初始資金<br>
+                    2. 切換至「交易」標籤，輸入股票代碼與股數執行買賣<br>
+                    3. 「交易歷史」可查看所有交易記錄<br>
+                    • 費率：買入 0.0855%（線上折扣），賣出 0.3855%（含證交稅）
+                </div>
+
+                <div class="help-section-title">🔄 策略比較（進階）</div>
+                <div class="help-section-body">
+                    前往 <a href="/compare" class="text-purple-400 underline hover:text-purple-300">/compare</a> 頁面可同時比較四種策略的績效曲線（MA Crossover、RF、HMM Filter、Buy &amp; Hold），並顯示系統推薦策略。
+                </div>
+
+                <div class="help-section-title">❓ 常見問題</div>
+                <div class="help-section-body">
+                    <strong>Q：搜尋後畫面空白？</strong><br>
+                    A：請確認代碼格式正確（台股需加 .TW），或嘗試換其他代碼。<br><br>
+                    <strong>Q：回測很慢？</strong><br>
+                    A：首次回測需訓練 ML 模型，約 30–90 秒屬正常，後續有模型快取。<br><br>
+                    <strong>Q：AI 訊號準確嗎？</strong><br>
+                    A：本系統僅供學習參考，歷史回測不代表未來表現，<strong>請勿作為真實投資依據</strong>。
+                </div>
+
+            </div>
+
+            <div class="mt-6 pt-4 border-t border-slate-700 text-center">
+                <p class="text-slate-500 text-sm">Stock Analysis Pro — 教育用途 · MIT License</p>
+                <p class="text-slate-600 text-xs mt-1">按 Esc 或點擊背景關閉</p>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

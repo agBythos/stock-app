@@ -84,6 +84,25 @@ def _calc_ma(data: pd.DataFrame, period: int) -> pd.Series:
     return data["Close"].rolling(window=period).mean()
 
 
+def _calc_garman_klass_vol(data: pd.DataFrame, window: int = 20) -> pd.Series:
+    """
+    計算 Garman-Klass 波動率（滾動窗口）
+
+    公式：GK = sqrt(1/N * sum(0.5*(log(H/L))^2 - (2*ln2-1)*(log(C/O))^2))
+
+    Args:
+        data:   DataFrame with 'Open', 'High', 'Low', 'Close' columns
+        window: 滾動窗口大小（預設 20）
+
+    Returns:
+        pd.Series of Garman-Klass volatility values
+    """
+    log_hl = np.log(data["High"] / data["Low"])
+    log_co = np.log(data["Close"] / data["Open"])
+    gk_daily = 0.5 * log_hl ** 2 - (2 * np.log(2) - 1) * log_co ** 2
+    return np.sqrt(gk_daily.rolling(window=window).mean())
+
+
 # ============================================================================
 # RandomForestPredictor（自包含）
 # ============================================================================
@@ -118,6 +137,7 @@ class RandomForestPredictor:
         "momentum_10d",
         "momentum_20d",
         "volatility_20d",
+        "garman_klass_vol",
     ]
 
     def __init__(
@@ -194,6 +214,9 @@ class RandomForestPredictor:
 
         # 7. Volatility (20d rolling std of daily returns)
         df["volatility_20d"] = df["Close"].pct_change().rolling(20).std()
+
+        # 8. Garman-Klass Volatility (20-day window)
+        df["garman_klass_vol"] = _calc_garman_klass_vol(df, window=20)
 
         return df[self.FEATURE_NAMES]
 

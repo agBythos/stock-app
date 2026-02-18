@@ -41,6 +41,8 @@ from validation.cpcv_splitter import (
     CPCVPath,
     CPCVSplitter,
 )
+from validation.permutation import permute_bars
+from validation.permutation_test import insample_perm_test, walkforward_perm_test
 from validation.cpcv_runner import (
     CPCVFoldReport,
     CPCVPathReport,
@@ -61,4 +63,8 @@ __all__ = [
     "CPCVPathReport",
     "CPCVReport",
     "CPCVRunner",
+    # Phase 4.5 MCPT
+    "permute_bars",
+    "insample_perm_test",
+    "walkforward_perm_test",
 ]

@@ -1,0 +1,18 @@
+# Stock Analysis App
+> AI agent built full-stack Taiwan stock analysis platform with ML predictions
+
+## What this is
+FastAPI backend + Lightweight Charts frontend for Taiwan stock market analysis.
+ML predictions using Random Forest with Walk-Forward validation.
+HMM regime detection (Bull/Sideways/Bear states).
+CPCV validation framework for strategy evaluation.
+
+## Key files
+- server.py: FastAPI main app, all endpoints
+- backtest/: Backtrader integration, strategies
+- static/: Frontend HTML/JS
+- tests/: 28+ unit tests
+
+## Quick start
+pip install -r requirements.txt
+python server.py
